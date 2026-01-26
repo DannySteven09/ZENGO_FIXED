@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#C8102E">
+    <meta name="description" content="ZENGO - Sistema de Inventario Cíclico de Alto Rendimiento">
+    
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/img/icon-192.png">
+    
+    <title>ZENGO | High Performance Inventory</title>
+
+    <!-- Fuentes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/main.css">
+
+    <!-- Librerías externas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+
+    <style>
+        :root {
+            --admin-red: #C8102E;
+            --admin-red-dark: #a00d24;
+            --admin-red-glow: rgba(200, 16, 46, 0.25);
+            --jefe-purple: #7C3AED;
+            --jefe-purple-glow: rgba(124, 58, 237, 0.2);
+            --aux-blue: #2563EB;
+            --aux-blue-glow: rgba(37, 99, 235, 0.2);
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+            --bg-primary: #020202;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.4);
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-blur: 20px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #app-container {
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .glass {
+            background: var(--glass);
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid var(--border);
+        }
+
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #000 0%, #0a0a0a 50%, #050000 100%);
+            z-index: 10000;
+            transition: opacity 0.5s ease;
+        }
+
+        .logo-load {
+            font-size: 4rem;
+            font-weight: 900;
+            letter-spacing: -4px;
+            margin-bottom: 30px;
+            animation: logoPulse 2s ease-in-out infinite;
+        }
+
+        .logo-load span { color: var(--admin-red); text-shadow: 0 0 40px var(--admin-red-glow); }
+
+        @keyframes logoPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(0.98); }
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.05);
+            border-top: 3px solid var(--admin-red);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 25px;
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 3px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .loading-version {
+            position: absolute;
+            bottom: 30px;
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
+        .text-success { color: var(--success) !important; }
+        .text-error { color: var(--error) !important; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+    </style>
+</head>
+<body class="dark">
+    <div id="app-container">
+        <div id="loading-screen">
+            <div class="logo-load">ZEN<span>GO</span></div>
+            <div class="spinner"></div>
+            <p class="loading-text">Inicializando sistema</p>
+            <p class="loading-version">v1.0.0 | Office Depot</p>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('✓ Service Worker registrado'))
+                    .catch(err => console.log('Service Worker no disponible'));
+            });
+        }
+    </script>
+</body>
+</html>

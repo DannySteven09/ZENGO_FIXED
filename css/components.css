@@ -1,0 +1,148 @@
+/* --- COMPONENTES GLOBALES ZENGO --- */
+
+/* 1. MODAL DE CONSULTA (Glassmorphism Rojo/Dark) */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 500px;
+    padding: 30px;
+    border-radius: 24px;
+    position: relative;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.type-badge {
+    background: var(--admin-red);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 800;
+}
+
+/* 2. GRID DE CONSULTA (Detalles del Producto) */
+.consult-body .main-info h2 {
+    font-size: 28px;
+    letter-spacing: -1px;
+    margin-bottom: 5px;
+}
+
+.stats-grid-consult {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.c-item {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.c-item small {
+    display: block;
+    font-size: 9px;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.status-active { color: #22c55e; font-weight: 600; }
+
+/* 3. CAJA DE UBICACIÓN HISTÓRICA (La que pidió Danny) */
+.location-history-box {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 20px;
+    border-radius: 16px;
+    background: rgba(200, 16, 46, 0.08); /* Tinte rojo suave */
+    border: 1px dashed var(--admin-red);
+    margin-top: 10px;
+}
+
+.icon-loc {
+    font-size: 24px;
+    color: var(--admin-red);
+}
+
+.loc-text strong {
+    display: block;
+    font-size: 11px;
+    color: var(--admin-red);
+    letter-spacing: 1px;
+}
+
+.loc-text p {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 2px 0;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* 4. BOTONES Y INPUTS GLASS */
+.btn-close-modal {
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 12px;
+    border: none;
+    background: white;
+    color: black;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-close-modal:hover {
+    transform: scale(0.98);
+    background: #e0e0e0;
+}
+
+/* 5. TABLAS TÁCTICAS (Usadas en Admin y Jefe) */
+.admin-table, .heat-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 8px;
+}
+
+.admin-table tr td {
+    background: rgba(255, 255, 255, 0.02);
+    padding: 15px;
+}
+
+.admin-table tr td:first-child { border-radius: 12px 0 0 12px; }
+.admin-table tr td:last-child { border-radius: 0 12px 12px 0; }
+
+/* 6. TOASTS (Notificaciones flotantes) */
+.toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    padding: 15px 25px;
+    border-radius: 12px;
+    z-index: 11000;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
