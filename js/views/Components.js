@@ -5,9 +5,7 @@
 
 export const Components = {
 
-    // ═══════════════════════════════════════════════════════════
-    // MODAL DE CONSULTA DE PRODUCTO
-    // ═══════════════════════════════════════════════════════════
+
     renderScannerConsult(producto, ubicaciones = []) {
         // Cerrar modal anterior si existe
         document.querySelector('.modal-overlay.scanner-consult')?.remove();
