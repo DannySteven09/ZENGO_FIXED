@@ -1,88 +1,70 @@
 // ═══════════════════════════════════════════════════════════════
-// ZENGO - Base de Datos Local (Dexie.js / IndexedDB)
-// Persistencia Offline para Conteos Cíclicos
+// ZENGO - Configuración Dexie (IndexedDB)
+// Base de datos local para funcionamiento offline
 // ═══════════════════════════════════════════════════════════════
 
-const db = new Dexie("ZengoDB");
+import Dexie from 'https://cdn.jsdelivr.net/npm/dexie@3.2.4/+esm';
 
-// Schema de la base de datos local
-db.version(1).stores({
-    // Productos del catálogo (se sincroniza desde Supabase)
-    productos: 'sku, upc, descripcion, categoria_id, precio, costo, stock_sistema',
+const db = new Dexie('ZengoDB');
+
+// Definir esquema de tablas
+db.version(2).stores({
+    // Productos del inventario
+    productos: '++id, upc, sku, descripcion, categoria_id, stock_sistema, precio, tipo, estatus, prioridad, synced',
     
-    // Conteos realizados (pendientes de sincronizar)
-    conteos: '++id, tarea_id, producto_sku, upc, cantidad_contada, ubicacion, timestamp, sync_status, auxiliar_id',
+    // Tareas asignadas a auxiliares
+    tareas: 'id, categoria, auxiliar_id, estado, fecha_asignacion',
     
-    // Historial de ubicaciones (Modo Consulta)
-    ubicaciones_historico: 'upc, *ubicaciones, ultima_actualizacion',
+    // Hallazgos reportados por auxiliares
+    hallazgos: '++id, upc, auxiliar_id, tarea_id, estado, timestamp',
     
-    // Tareas asignadas al auxiliar
-    tareas: 'id, titulo, categoria, estado, fecha_asignacion, productos_total',
+    // Conteos individuales (histórico)
+    conteos: '++id, upc, cantidad, ubicacion, auxiliar_id, tarea_id, timestamp, synced',
     
-    // Hallazgos reportados (pendientes de sincronizar)
-    hallazgos: '++id, upc, descripcion, cantidad, ubicacion, foto_base64, timestamp, sync_status, auxiliar_id',
+    // Ubicaciones históricas
+    ubicaciones: '++id, upc, ubicacion, timestamp',
     
     // Cola de sincronización
-    sync_queue: '++id, tabla, registro_id, accion, timestamp, intentos'
+    sync_queue: '++id, tabla, accion, datos, timestamp'
 });
 
-// ═══════════════════════════════════════════════════════════════
-// MÉTODOS HELPER
-// ═══════════════════════════════════════════════════════════════
+// Migración de versión 1 a 2
+db.version(1).stores({
+    productos: '++id, upc, sku, descripcion, categoria_id, stock_sistema, precio, synced',
+    conteos: '++id, upc, cantidad, ubicacion, auxiliar_id, timestamp, synced',
+    ubicaciones: '++id, upc, ubicacion, timestamp',
+    sync_queue: '++id, tabla, accion, datos, timestamp'
+});
 
-// Guardar conteo con estado pendiente
-db.guardarConteo = async function(conteo) {
-    return await this.conteos.add({
-        ...conteo,
-        timestamp: new Date().toISOString(),
-        sync_status: 'pending'
-    });
+// Hooks para debugging
+db.on('ready', () => {
+    console.log('✓ Dexie: Base de datos lista');
+});
+
+db.on('blocked', () => {
+    console.warn('⚠ Dexie: Base de datos bloqueada');
+});
+
+// Métodos helper
+db.clearAll = async function() {
+    await db.productos.clear();
+    await db.tareas.clear();
+    await db.hallazgos.clear();
+    await db.conteos.clear();
+    await db.ubicaciones.clear();
+    await db.sync_queue.clear();
+    console.log('✓ Dexie: Todas las tablas limpiadas');
 };
 
-// Obtener conteos pendientes de sincronizar
-db.getPendientes = async function() {
-    return await this.conteos.where('sync_status').equals('pending').toArray();
-};
-
-// Marcar como sincronizado
-db.marcarSincronizado = async function(id) {
-    return await this.conteos.update(id, { sync_status: 'synced' });
-};
-
-// Guardar ubicación en histórico
-db.actualizarUbicacion = async function(upc, nuevaUbicacion) {
-    const registro = await this.ubicaciones_historico.get(upc);
-    if (registro) {
-        const ubicaciones = registro.ubicaciones || [];
-        if (!ubicaciones.includes(nuevaUbicacion)) {
-            ubicaciones.push(nuevaUbicacion);
-        }
-        return await this.ubicaciones_historico.update(upc, { 
-            ubicaciones, 
-            ultima_actualizacion: new Date().toISOString() 
-        });
-    } else {
-        return await this.ubicaciones_historico.add({
-            upc,
-            ubicaciones: [nuevaUbicacion],
-            ultima_actualizacion: new Date().toISOString()
-        });
-    }
-};
-
-// Obtener histórico de ubicaciones
-db.getUbicaciones = async function(upc) {
-    const registro = await this.ubicaciones_historico.get(upc);
-    return registro ? registro.ubicaciones : [];
-};
-
-// Limpiar datos antiguos (más de 7 días sincronizados)
-db.limpiarAntiguos = async function() {
-    const hace7Dias = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    return await this.conteos
-        .where('sync_status').equals('synced')
-        .and(c => c.timestamp < hace7Dias)
-        .delete();
+db.getStats = async function() {
+    return {
+        productos: await db.productos.count(),
+        tareas: await db.tareas.count(),
+        hallazgos: await db.hallazgos.count(),
+        conteos: await db.conteos.count(),
+        ubicaciones: await db.ubicaciones.count(),
+        sync_queue: await db.sync_queue.count()
+    };
 };
 
 export default db;
