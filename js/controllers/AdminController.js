@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // ZENGO - Controlador de Administración
 // Gestiona carga de datos, reportes y operaciones administrativas
+// CORREGIDO: Sin alta/baja prioridad en resumen
 // ═══════════════════════════════════════════════════════════════
 
 import db from '../config/dexie-db.js';
@@ -17,12 +18,6 @@ export const AdminController = {
         if (!file) return;
 
         // Validar tipo de archivo
-        const validTypes = [
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
-            'application/vnd.ms-excel', // xls
-            'text/csv'
-        ];
-        
         const extension = file.name.split('.').pop().toLowerCase();
         if (!['xlsx', 'xls', 'csv'].includes(extension)) {
             window.ZENGO?.toast('Formato no válido. Usa Excel o CSV', 'error');
@@ -55,15 +50,18 @@ export const AdminController = {
     },
 
     // ═══════════════════════════════════════════════════════════
-    // MOSTRAR RESUMEN DE IMPORTACIÓN
+    // MOSTRAR RESUMEN DE IMPORTACIÓN (CORREGIDO)
     // ═══════════════════════════════════════════════════════════
     showImportSummary(result) {
         const { items, stats, categories } = result;
 
+        // Calcular existencia total
+        const existenciaTotal = items.reduce((acc, p) => acc + (p.stock_sistema || 0), 0);
+
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
-            <div class="modal-content glass" style="max-width: 500px;">
+            <div class="modal-content glass" style="max-width: 600px;">
                 <div class="modal-header">
                     <h3><i class="fas fa-check-circle text-success"></i> Importación Exitosa</h3>
                     <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
@@ -71,59 +69,219 @@ export const AdminController = {
                     </button>
                 </div>
                 <div class="modal-body">
+                    <!-- Estadísticas principales -->
                     <div class="import-stats">
-                        <div class="stat-row">
-                            <span>Total productos</span>
+                        <div class="stat-row highlight">
+                            <span><i class="fas fa-boxes"></i> Total productos</span>
                             <strong>${stats.total.toLocaleString()}</strong>
                         </div>
                         <div class="stat-row">
-                            <span>Alta prioridad (70%)</span>
-                            <strong class="text-error">${stats.highPriority.toLocaleString()}</strong>
-                        </div>
-                        <div class="stat-row">
-                            <span>Baja prioridad (30%)</span>
-                            <strong>${stats.lowPriority.toLocaleString()}</strong>
-                        </div>
-                        <div class="stat-row">
-                            <span>Valor total inventario</span>
-                            <strong>₡${stats.totalValue.toLocaleString()}</strong>
-                        </div>
-                        <div class="stat-row">
-                            <span>Categorías detectadas</span>
+                            <span><i class="fas fa-layer-group"></i> Categorías detectadas</span>
                             <strong>${stats.categories}</strong>
+                        </div>
+                        <div class="stat-row">
+                            <span><i class="fas fa-cubes"></i> Existencia total</span>
+                            <strong>${existenciaTotal.toLocaleString()} unidades</strong>
+                        </div>
+                        <div class="stat-row">
+                            <span><i class="fas fa-coins"></i> Valor total inventario</span>
+                            <strong>₡${stats.totalValue.toLocaleString()}</strong>
                         </div>
                     </div>
                     
+                    <!-- Grid de categorías -->
                     <div class="categories-preview">
-                        <h4>Categorías:</h4>
-                        <div class="cat-tags">
-                            ${categories.slice(0, 10).map(([nombre, count]) => 
-                                `<span class="cat-tag">${nombre} (${count})</span>`
-                            ).join('')}
-                            ${categories.length > 10 ? `<span class="cat-tag">+${categories.length - 10} más</span>` : ''}
+                        <h4><i class="fas fa-th-large"></i> Productos por Categoría:</h4>
+                        <div class="cat-grid">
+                            ${categories.map(([nombre, count], index) => {
+                                const colores = ['#C8102E', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316'];
+                                const color = colores[index % colores.length];
+                                const porcentaje = ((count / stats.total) * 100).toFixed(1);
+                                return `
+                                    <div class="cat-card" style="border-left: 4px solid ${color}">
+                                        <div class="cat-header">
+                                            <span class="cat-name">${nombre}</span>
+                                            <span class="cat-count" style="background: ${color}">${count}</span>
+                                        </div>
+                                        <div class="cat-bar">
+                                            <div class="cat-bar-fill" style="width: ${porcentaje}%; background: ${color}"></div>
+                                        </div>
+                                        <span class="cat-percent">${porcentaje}%</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Confirmación de guardado -->
+                    <div class="save-status">
+                        <div class="save-item success">
+                            <i class="fas fa-database"></i>
+                            <span>Guardado en Dexie (local)</span>
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <div class="save-item ${navigator.onLine ? 'success' : 'pending'}">
+                            <i class="fas fa-cloud"></i>
+                            <span>Sincronizado con Supabase</span>
+                            <i class="fas fa-${navigator.onLine ? 'check' : 'clock'}"></i>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn-primary" onclick="this.closest('.modal-overlay').remove()">
-                        Entendido
+                    <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">
+                        Cerrar
+                    </button>
+                    <button class="btn-primary" onclick="AdminController.verDashboard(); this.closest('.modal-overlay').remove()">
+                        <i class="fas fa-chart-pie"></i> Ver Dashboard
                     </button>
                 </div>
             </div>
         `;
 
-        // Estilos inline para el modal
+        // Estilos para el modal
         const style = document.createElement('style');
         style.innerHTML = `
-            .import-stats { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
-            .stat-row { display: flex; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; }
-            .categories-preview h4 { margin-bottom: 10px; font-size: 14px; }
-            .cat-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-            .cat-tag { padding: 4px 10px; background: rgba(200, 16, 46, 0.2); border-radius: 15px; font-size: 11px; }
+            .import-stats { 
+                display: flex; 
+                flex-direction: column; 
+                gap: 12px; 
+                margin-bottom: 24px; 
+            }
+            .stat-row { 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center;
+                padding: 12px 16px; 
+                background: rgba(255,255,255,0.05); 
+                border-radius: 10px; 
+            }
+            .stat-row.highlight {
+                background: rgba(200, 16, 46, 0.15);
+                border: 1px solid rgba(200, 16, 46, 0.3);
+            }
+            .stat-row span {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                color: rgba(255,255,255,0.7);
+            }
+            .stat-row strong {
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 16px;
+            }
+            .categories-preview { 
+                margin-bottom: 24px;
+            }
+            .categories-preview h4 { 
+                margin-bottom: 16px; 
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                color: rgba(255,255,255,0.6);
+            }
+            .cat-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+                gap: 12px;
+            }
+            .cat-card {
+                background: rgba(255,255,255,0.03);
+                border-radius: 8px;
+                padding: 12px;
+            }
+            .cat-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 8px;
+            }
+            .cat-name {
+                font-weight: 600;
+                font-size: 13px;
+            }
+            .cat-count {
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 700;
+                color: white;
+            }
+            .cat-bar {
+                height: 4px;
+                background: rgba(255,255,255,0.1);
+                border-radius: 2px;
+                overflow: hidden;
+                margin-bottom: 4px;
+            }
+            .cat-bar-fill {
+                height: 100%;
+                border-radius: 2px;
+                transition: width 0.5s ease;
+            }
+            .cat-percent {
+                font-size: 10px;
+                color: rgba(255,255,255,0.4);
+            }
+            .save-status {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                padding: 16px;
+                background: rgba(255,255,255,0.02);
+                border-radius: 10px;
+            }
+            .save-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                font-size: 13px;
+            }
+            .save-item.success {
+                color: #10B981;
+            }
+            .save-item.pending {
+                color: #F59E0B;
+            }
+            .save-item span {
+                flex: 1;
+            }
+            .modal-footer {
+                display: flex;
+                gap: 12px;
+                justify-content: flex-end;
+            }
+            .btn-primary {
+                background: #C8102E;
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .btn-secondary {
+                background: rgba(255,255,255,0.1);
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 8px;
+                cursor: pointer;
+            }
         `;
         modal.appendChild(style);
 
         document.body.appendChild(modal);
+    },
+
+    // Ver dashboard después de importar
+    verDashboard() {
+        if (typeof AdminView !== 'undefined' && AdminView.showSection) {
+            AdminView.showSection('dashboard');
+        }
     },
 
     // ═══════════════════════════════════════════════════════════
@@ -232,7 +390,6 @@ export const AdminController = {
                     'PRECIO': p.precio || 0,
                     'VALOR DIFERENCIA': diferencia * (p.precio || 0),
                     'UBICACIÓN': conteo?.ubicacion || '',
-                    'PRIORIDAD': p.prioridad || 'B',
                     'ESTATUS': p.estatus || 'ACTIVO'
                 };
             });
@@ -398,6 +555,9 @@ export const AdminController = {
                 ? ((lineasContadas / productos.length) * 100).toFixed(1) 
                 : 0;
 
+            // Obtener categorías
+            const categorias = await InventoryModel.getCategories();
+
             return {
                 diffTotal: diferenciaNeta,
                 precision: precision,
@@ -406,8 +566,9 @@ export const AdminController = {
                 mermaMonetaria: mermaMonetaria,
                 sobraMonetaria: sobraMonetaria,
                 hallazgosPendientes: hallazgos.length,
-                tareasActivas: 0, // Se obtiene de Supabase
-                auxiliaresActivos: 0 // Se obtiene de Supabase
+                tareasActivas: 0,
+                auxiliaresActivos: 0,
+                categorias: categorias
             };
 
         } catch (error) {
@@ -418,7 +579,8 @@ export const AdminController = {
                 lineasContadas: 0,
                 lineasTotales: 0,
                 mermaMonetaria: 0,
-                sobraMonetaria: 0
+                sobraMonetaria: 0,
+                categorias: []
             };
         }
     },

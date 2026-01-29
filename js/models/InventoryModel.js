@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // ZENGO - Modelo de Inventario
 // Procesa archivos Excel/CSV de NetSuite y clasifica productos
+// CORREGIDO: Usa categorías reales sin normalización
 // ═══════════════════════════════════════════════════════════════
 
 import db from '../config/dexie-db.js';
@@ -13,7 +14,8 @@ export const InventoryModel = {
         total: 0,
         highPriority: 0,
         lowPriority: 0,
-        totalValue: 0
+        totalValue: 0,
+        categories: 0
     },
 
     // ═══════════════════════════════════════════════════════════
@@ -100,6 +102,7 @@ export const InventoryModel = {
             costo: ['COSTO', 'COST', 'COSTO UNITARIO', 'UNIT COST', 'AVG COST'],
             categoria: ['CATEGORIA', 'CATEGORY', 'DEPARTAMENTO', 'DEPARTMENT', 'CLASE', 'CLASS'],
             estatus: ['ESTATUS', 'STATUS', 'ESTADO', 'ACTIVO'],
+            tipo: ['TIPO', 'TYPE'],
             ubicacion: ['UBICACION', 'LOCATION', 'BIN', 'LOCALIZACION']
         };
 
@@ -130,12 +133,13 @@ export const InventoryModel = {
             costo: parseFloat(String(row[columnMap.costo] || '0').replace(/[^0-9.-]/g, '')) || 0,
             categoria_raw: String(row[columnMap.categoria] || '').trim(),
             estatus: String(row[columnMap.estatus] || 'ACTIVO').trim().toUpperCase(),
+            tipo: String(row[columnMap.tipo] || '').trim(),
             ubicacion_inicial: String(row[columnMap.ubicacion] || '').trim()
         }));
     },
 
     // ═══════════════════════════════════════════════════════════
-    // LIMPIAR Y CLASIFICAR (ABC 70/30)
+    // LIMPIAR Y CLASIFICAR (SIN normalización de categorías)
     // ═══════════════════════════════════════════════════════════
     cleanAndClassify(data) {
         // Filtrar items válidos (con UPC o SKU)
@@ -158,13 +162,18 @@ export const InventoryModel = {
         this.categories.clear();
 
         const classifiedItems = sortedData.map((item, index) => {
-            // Extraer categoría de la descripción si no viene
+            // ═══════════════════════════════════════════════════════
+            // CATEGORÍA: Primera palabra de la descripción (SIN NORMALIZAR)
+            // ═══════════════════════════════════════════════════════
             let categoria = item.categoria_raw;
             if (!categoria) {
-                // Primera palabra de la descripción como categoría
+                // Tomar la primera palabra de la descripción
                 categoria = item.descripcion.split(' ')[0].toUpperCase();
             }
-            categoria = this.normalizeCategory(categoria);
+            
+            // Limpiar caracteres especiales pero NO normalizar
+            categoria = categoria.replace(/[^A-ZÁÉÍÓÚÑ0-9]/g, '').trim();
+            if (!categoria) categoria = 'GENERAL';
 
             // Contar por categoría
             this.categories.set(categoria, (this.categories.get(categoria) || 0) + 1);
@@ -173,7 +182,7 @@ export const InventoryModel = {
             const itemValue = item.stock_sistema * item.precio;
             accumulatedValue += itemValue;
 
-            // Clasificación ABC (70/30)
+            // Clasificación ABC (70/30) - REMOVIDO del resumen según instrucciones
             const isHighPriority = accumulatedValue <= (totalValue * 0.70);
             if (isHighPriority) highPriorityCount++;
 
@@ -188,11 +197,11 @@ export const InventoryModel = {
                 categoria: categoria,
                 stock_sistema: item.stock_sistema,
                 precio: item.precio,
-                costo: item.costo || item.precio * 0.6, // Estimar costo si no viene
+                costo: item.costo || item.precio * 0.6,
                 valor_inventario: itemValue,
                 prioridad: isHighPriority ? 'A' : 'B',
-                prioridad_texto: isHighPriority ? '70% (Alta)' : '30% (Baja)',
-                estatus: item.estatus === 'ACTIVO' || item.estatus === 'ACTIVE' ? 'ACTIVO' : 'INACTIVO',
+                estatus: item.estatus,
+                tipo: item.tipo,
                 ubicacion: item.ubicacion_inicial || null,
                 conteo: null,
                 ultima_actualizacion: new Date().toISOString()
@@ -209,52 +218,9 @@ export const InventoryModel = {
         };
 
         console.log(`✓ Clasificación completada:`, this.stats);
+        console.log(`✓ Categorías detectadas:`, Array.from(this.categories.entries()));
 
         return classifiedItems;
-    },
-
-    // ═══════════════════════════════════════════════════════════
-    // NORMALIZAR CATEGORÍA
-    // ═══════════════════════════════════════════════════════════
-    normalizeCategory(cat) {
-        if (!cat) return 'GENERAL';
-        
-        // Limpiar y normalizar
-        let normalized = cat.toUpperCase().trim();
-        
-        // Mapeo de categorías comunes
-        const categoryMap = {
-            'PAPEL': 'PAPEL',
-            'PAPELERIA': 'PAPEL',
-            'TONER': 'TONER',
-            'TINTA': 'TONER',
-            'CARTUCHO': 'TONER',
-            'MOBILIARIO': 'MOBILIARIO',
-            'MUEBLE': 'MOBILIARIO',
-            'SILLA': 'MOBILIARIO',
-            'ESCRITORIO': 'MOBILIARIO',
-            'TECNOLOGIA': 'TECNOLOGIA',
-            'COMPU': 'TECNOLOGIA',
-            'LAPTOP': 'TECNOLOGIA',
-            'ELECTRONICO': 'TECNOLOGIA',
-            'ESCOLAR': 'ESCOLAR',
-            'ARCHIVO': 'ARCHIVO',
-            'FOLDER': 'ARCHIVO',
-            'CARPETA': 'ARCHIVO'
-        };
-
-        for (const [key, value] of Object.entries(categoryMap)) {
-            if (normalized.includes(key)) {
-                return value;
-            }
-        }
-
-        // Si es muy largo, tomar primeras 15 letras
-        if (normalized.length > 15) {
-            normalized = normalized.substring(0, 15);
-        }
-
-        return normalized || 'GENERAL';
     },
 
     // ═══════════════════════════════════════════════════════════
@@ -281,13 +247,15 @@ export const InventoryModel = {
     // ═══════════════════════════════════════════════════════════
     async syncToCloud() {
         try {
-            // Subir en lotes de 500
-            const batchSize = 500;
+            // Subir en lotes de 100 (más seguro)
+            const batchSize = 100;
             const batches = [];
             
             for (let i = 0; i < this.rawItems.length; i += batchSize) {
                 batches.push(this.rawItems.slice(i, i + batchSize));
             }
+
+            let totalInserted = 0;
 
             for (const batch of batches) {
                 const { error } = await supabase
@@ -296,20 +264,22 @@ export const InventoryModel = {
                         upc: p.upc,
                         sku: p.sku,
                         descripcion: p.descripcion,
-                        categoria_id: p.categoria_id,
                         stock_sistema: p.stock_sistema,
                         precio: p.precio,
                         costo: p.costo,
                         prioridad: p.prioridad,
-                        estatus: p.estatus
+                        estatus: p.estatus,
+                        tipo: p.tipo
                     })), { onConflict: 'upc' });
 
                 if (error) {
-                    console.warn('Error en batch:', error);
+                    console.warn('Error en batch:', error.message);
+                } else {
+                    totalInserted += batch.length;
                 }
             }
 
-            console.log(`✓ Productos sincronizados con Supabase`);
+            console.log(`✓ ${totalInserted} productos sincronizados con Supabase`);
             return true;
         } catch (err) {
             console.error('Error sincronizando con Supabase:', err);
@@ -354,21 +324,29 @@ export const InventoryModel = {
     },
 
     // ═══════════════════════════════════════════════════════════
-    // OBTENER CATEGORÍAS
+    // OBTENER CATEGORÍAS CON CONTEOS
     // ═══════════════════════════════════════════════════════════
     async getCategories() {
         const productos = await db.productos.toArray();
         const cats = new Map();
         
         productos.forEach(p => {
-            const cat = p.categoria_id || 'GENERAL';
-            cats.set(cat, (cats.get(cat) || 0) + 1);
+            const cat = p.categoria_id || p.categoria || 'GENERAL';
+            if (!cats.has(cat)) {
+                cats.set(cat, { count: 0, existencia: 0, valor: 0 });
+            }
+            const catData = cats.get(cat);
+            catData.count++;
+            catData.existencia += p.stock_sistema || 0;
+            catData.valor += (p.stock_sistema || 0) * (p.precio || 0);
         });
 
-        return Array.from(cats.entries()).map(([nombre, count]) => ({
+        return Array.from(cats.entries()).map(([nombre, data]) => ({
             id: nombre,
             nombre: nombre,
-            productos_count: count
+            productos_count: data.count,
+            existencia_total: data.existencia,
+            valor_total: data.valor
         })).sort((a, b) => b.productos_count - a.productos_count);
     },
 
