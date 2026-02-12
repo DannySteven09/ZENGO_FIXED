@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#C8102E">
+    <meta name="description" content="ZENGO - Sistema de Inventario Cíclico de Alto Rendimiento">
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <title>ZENGO | High Performance Inventory</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- CSS modular ZENGO -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/tables.css">
+    <link rel="stylesheet" href="css/jefe.css">
+    <link rel="stylesheet" href="css/auxiliar.css">
+    <link rel="stylesheet" href="css/main.css">
+
+    <!-- Librerías externas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+
+    <style>
+        /* Loading screen — solo aquí porque desaparece al cargar */
+        #loading-screen {
+            position: fixed; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #000 0%, #0a0a0a 50%, #050000 100%);
+            z-index: 10000; transition: opacity 0.5s ease;
+        }
+        .logo-load {
+            font-size: 4rem; font-weight: 900;
+            letter-spacing: -4px; margin-bottom: 30px;
+            animation: logoPulse 2s ease-in-out infinite;
+        }
+        .logo-load span { color: #C8102E; text-shadow: 0 0 40px rgba(200,16,46,0.25); }
+        @keyframes logoPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(0.98); }
+        }
+        .spinner {
+            width: 50px; height: 50px;
+            border: 3px solid rgba(255,255,255,0.05);
+            border-top: 3px solid #C8102E;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text {
+            margin-top: 25px; font-size: 11px; font-weight: 500;
+            letter-spacing: 3px; color: rgba(255,255,255,0.4); text-transform: uppercase;
+        }
+        .loading-version { position: absolute; bottom: 30px; font-size: 11px; color: rgba(255,255,255,0.4); }
+
+        #app-container { width: 100%; min-height: 100vh; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100px); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        .offline-mode::after {
+            content: 'MODO OFFLINE';
+            position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+            background: #f59e0b; color: #000; padding: 5px 20px;
+            font-size: 11px; font-weight: 700; letter-spacing: 1px;
+            border-radius: 0 0 8px 8px; z-index: 9999;
+        }
+    </style>
+</head>
+<body class="dark">
+    <div id="app-container">
+        <div id="loading-screen">
+            <div class="logo-load">ZEN<span>GO</span></div>
+            <div class="spinner"></div>
+            <p class="loading-text">Inicializando sistema</p>
+            <p class="loading-version">v1.5.0 | Office Depot</p>
+        </div>
+    </div>
+
+    <!-- ═══ CONFIG ═══ -->
+    <script src="js/config/supabase.js"></script>
+    <script src="js/config/dexie-db.js"></script>
+
+    <!-- ═══ MODELS ═══ -->
+    <script src="js/models/AuthModel.js"></script>
+    <script src="js/models/InventoryModel.js"></script>
+    <script src="js/models/LocationModel.js"></script>
+
+    <!-- ═══ CONTROLLERS ═══ -->
+    <script src="js/controllers/SyncManager.js"></script>
+    <script src="js/controllers/ScannerController.js"></script>
+    <script src="js/controllers/AdminController.js"></script>
+    <script src="js/controllers/CycleController.js"></script>
+    <script src="js/controllers/AuthController.js"></script>
+
+    <!-- ═══ VIEWS ═══ -->
+    <script src="js/views/Components.js"></script>
+    <script src="js/views/LoginView.js"></script>
+    <script src="js/views/AdminView.js"></script>
+    <script src="js/views/JefeView.js"></script>
+    <script src="js/views/AuxiliarView.js"></script>
+
+    <!-- ═══ APP ═══ -->
+    <script src="js/app.js"></script>
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('✓ Service Worker registrado'))
+                    .catch(err => console.log('Service Worker no disponible'));
+            });
+        }
+    </script>
+</body>
+</html>

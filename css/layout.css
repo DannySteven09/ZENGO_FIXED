@@ -1,0 +1,99 @@
+/* ═══════════════════════════════════════════════════════════
+   ZENGO - Layout CSS
+   Sidebar, main content, header, dashboard wrapper
+   Compartido por todos los dashboards
+   ═══════════════════════════════════════════════════════════ */
+
+.dashboard-wrapper { display: flex; min-height: 100vh; }
+
+/* ═══ Sidebar ═══ */
+.sidebar {
+    width: 240px; height: 100vh; position: fixed;
+    left: 0; top: 0; display: flex; flex-direction: column;
+    background: var(--glass-bg);
+    border-right: 1px solid var(--border-subtle);
+    z-index: 100;
+}
+.sidebar.collapsed { width: 70px; }
+.sidebar.collapsed .user-card,
+.sidebar.collapsed span,
+.sidebar.collapsed .badge-boss,
+.sidebar.collapsed .badge-aux,
+.sidebar.collapsed .badge-admin,
+.sidebar.collapsed .badge-alert { display: none; }
+
+.sidebar-header {
+    padding: 20px; display: flex; align-items: center;
+    gap: 10px; border-bottom: 1px solid var(--border-subtle);
+}
+.logo { font-size: 24px; font-weight: 900; }
+.toggle-btn { background: none; border: none; color: white; cursor: pointer; margin-left: auto; }
+
+/* ═══ User Card ═══ */
+.user-card {
+    padding: 20px; display: flex; align-items: center;
+    gap: 15px; border-bottom: 1px solid var(--border-subtle);
+}
+.user-avatar {
+    width: 45px; height: 45px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+}
+.user-info { display: flex; flex-direction: column; }
+.user-name { font-weight: 600; }
+.user-role { font-size: 11px; color: var(--text-dim); }
+
+/* ═══ Nav ═══ */
+.sidebar-nav { padding: 15px; display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 15px; border-radius: 10px;
+    color: rgba(255,255,255,0.6); text-decoration: none;
+}
+.nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+.nav-item.logout { color: #ef4444; }
+.nav-spacer { flex: 1; }
+
+.badge-alert {
+    background: #ef4444; color: white; font-size: 10px;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-left: auto;
+}
+
+/* ═══ Main Content ═══ */
+.main-content { margin-left: 240px; flex: 1; padding: 20px; }
+.sidebar.collapsed + .main-content { margin-left: 70px; }
+
+/* ═══ Top Header ═══ */
+.top-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 15px 20px; border-radius: 16px; margin-bottom: 20px;
+}
+.header-left { display: flex; align-items: center; gap: 15px; }
+.header-left h1 { font-size: 20px; }
+.header-stats { display: flex; align-items: center; gap: 10px; }
+.mobile-menu { display: none; background: none; border: none; color: white; font-size: 20px; }
+
+.sync-badge {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 20px; font-size: 11px;
+    background: rgba(34,197,94,0.15); color: #22c55e;
+}
+.sync-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.btn-refresh {
+    background: none; border: 1px solid rgba(255,255,255,0.1);
+    color: white; width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+}
+
+/* ═══ Section Header ═══ */
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.section-header h3,
+.section-header h2 { display: flex; align-items: center; gap: 10px; }
+
+/* ═══ Responsive ═══ */
+@media (max-width: 768px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.collapsed { transform: translateX(0); }
+    .main-content { margin-left: 0; }
+    .mobile-menu { display: block; }
+}

@@ -1,0 +1,37 @@
+/* ═══════════════════════════════════════════════════════════
+   ZENGO - Jefe Theme CSS
+   Solo estilos específicos del rol Jefe (púrpura)
+   ═══════════════════════════════════════════════════════════ */
+
+.jefe-theme { background: var(--bg-dark); }
+.accent-purple { color: var(--color-jefe); }
+.badge-boss { background: var(--color-jefe); color: white; font-size: 9px; padding: 3px 8px; border-radius: 4px; }
+.logo span { color: var(--color-jefe); }
+.user-avatar.jefe { background: linear-gradient(135deg, var(--color-jefe), #5b21b6); }
+.nav-item.active { background: rgba(124,58,237,0.15); color: var(--color-jefe); }
+
+/* Tabla jefe: cabeceras púrpura */
+.jefe-theme .tabla-ciclico thead { background: rgba(124,58,237,0.15); }
+.jefe-theme .tabla-ciclico th { color: var(--color-jefe); border-bottom-color: rgba(124,58,237,0.3); }
+.jefe-theme .conteo-cant { background: rgba(124,58,237,0.15); color: var(--color-jefe); }
+.jefe-theme .btn-add-conteo { background: var(--color-jefe); }
+.jefe-theme .btn-edit-mini:hover { color: var(--color-jefe); }
+.jefe-theme .btn-primary { background: var(--color-jefe); }
+.jefe-theme .stat-value { color: var(--color-jefe); }
+
+/* Revisión header y footer */
+.revision-header-section { padding: 20px; border-radius: 16px; margin-bottom: 15px; }
+.revision-actions-top { display: flex; gap: 10px; margin-top: 15px; }
+.btn-hallazgo-jefe {
+    background: rgba(245,158,11,0.15); color: #f59e0b;
+    border: none; padding: 10px 16px; border-radius: 10px;
+    cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600;
+}
+.revision-footer { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 50; }
+.btn-entregar {
+    background: linear-gradient(135deg, var(--color-jefe), #5b21b6);
+    color: white; border: none; padding: 15px 30px; border-radius: 30px;
+    font-size: 16px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 10px 30px rgba(124,58,237,0.4);
+}

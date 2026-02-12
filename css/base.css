@@ -1,0 +1,76 @@
+/* ═══════════════════════════════════════════════════════════
+   ZENGO - Base CSS
+   Variables, reset, tipografía, utilidades globales
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+    /* Colores de rol */
+    --color-admin: #C8102E;
+    --color-jefe: #7C3AED;
+    --color-auxiliar: #2563EB;
+    
+    /* Badges */
+    --badge-celeste: #2563EB;
+    --badge-purpura: #7C3AED;
+    --badge-rojo: #ef4444;
+    --badge-amarillo: #f59e0b;
+    --badge-verde: #22c55e;
+    
+    /* Neutrales */
+    --bg-dark: #050505;
+    --bg-card: rgba(255,255,255,0.03);
+    --border-subtle: rgba(255,255,255,0.08);
+    --text-primary: #ffffff;
+    --text-dim: rgba(255,255,255,0.5);
+    --text-muted: rgba(255,255,255,0.3);
+    
+    /* Glass */
+    --glass-bg: rgba(255,255,255,0.03);
+    --glass-border: 1px solid rgba(255,255,255,0.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ═══ Utilidades ═══ */
+.text-dim { color: var(--text-dim); font-size: 13px; }
+.text-center { text-align: center; }
+.text-success { color: var(--badge-verde) !important; }
+.text-error { color: var(--badge-rojo) !important; }
+.text-warning { color: var(--badge-amarillo) !important; }
+.glass { background: var(--glass-bg); border: var(--glass-border); }
+
+/* ═══ Estados vacíos y carga ═══ */
+.empty-state { text-align: center; padding: 40px; color: rgba(255,255,255,0.4); }
+.empty-state i { font-size: 40px; margin-bottom: 15px; display: block; }
+.empty-state.small { padding: 20px; }
+.empty-state-big { text-align: center; padding: 80px 20px; }
+.empty-state-big i { font-size: 60px; color: rgba(255,255,255,0.2); margin-bottom: 20px; }
+.empty-state-big h2 { margin-bottom: 10px; }
+.loading-state { text-align: center; padding: 30px; color: var(--text-dim); }
+
+/* ═══ Badges / Pills ═══ */
+.pill-badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 20px;
+    font-size: 10px; font-weight: 600;
+    margin-left: 4px; white-space: nowrap;
+}
+.pill-badge.celeste  { background: rgba(37,99,235,0.25);  color: #60a5fa; }
+.pill-badge.purpura  { background: rgba(124,58,237,0.25); color: #a78bfa; }
+.pill-badge.rojo     { background: rgba(239,68,68,0.25);  color: #f87171; }
+.pill-badge.amarillo { background: rgba(245,158,11,0.25); color: #fbbf24; }
+.pill-badge.verde    { background: rgba(34,197,94,0.25);  color: #4ade80; }
+
+/* ═══ Status Pills ═══ */
+.status-pill { padding: 4px 12px; border-radius: 20px; font-size: 11px; }
+.status-pill.pendiente { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.status-pill.en_progreso { background: rgba(59,130,246,0.15); color: #3b82f6; }
+.status-pill.finalizado_auxiliar { background: rgba(34,197,94,0.15); color: #22c55e; }
+.pill-asignada { background: rgba(34,197,94,0.2); color: #22c55e; font-size: 10px; padding: 2px 8px; border-radius: 10px; }
