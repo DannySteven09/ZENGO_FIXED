@@ -47,7 +47,8 @@
 
 /* ═══ Diferencias ═══ */
 .diff-falta { color: #ef4444 !important; }
-.diff-sobra { color: #f59e0b !important; }
+.diff-sobra { color: #22c55e !important; }
+.diff-cero { color: inherit; }
 .sin-conteo { color: rgba(255,255,255,0.2); }
 
 /* ═══ Conteos inline ═══ */

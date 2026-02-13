@@ -81,7 +81,20 @@ const AuthController = {
         }
     },
 
-    logout() {
+    async logout() {
+        try {
+            if (navigator.onLine && window.supabaseClient) {
+                if (window.AuxiliarView?.tareaActual) {
+                    await window.AuxiliarView.syncTareaToSupabase();
+                }
+                if (window.JefeView?.revisionActual) {
+                    await window.JefeView.syncTareaToSupabase(window.JefeView.revisionActual);
+                }
+                await window.SyncManager?.syncPendientes?.();
+            }
+        } catch (e) {
+            console.warn('Sync pre-logout falló:', e);
+        }
         window.AuthModel.logout();
         localStorage.removeItem('zengo_session');
         this.currentUser = null;

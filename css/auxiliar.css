@@ -34,12 +34,62 @@
     display: flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap;
 }
 
-/* Progress bar */
-.progress-section { padding: 15px 20px; border-radius: 16px; margin-bottom: 20px; }
-.progress-info { margin-bottom: 10px; font-size: 14px; display: flex; align-items: center; gap: 15px; }
+/* Cronómetro */
+.cronometro-badge {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 10px;
+    background: rgba(37,99,235,0.1); border: 1px solid rgba(37,99,235,0.25);
+    color: var(--color-auxiliar); font-weight: 600;
+}
+.cronometro-time { font-family: 'Courier New', monospace; font-size: 18px; font-weight: 700; }
+
+/* KPI Grid */
+.kpi-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;
+}
+.kpi-card {
+    padding: 20px; border-radius: 16px;
+}
+.kpi-header {
+    display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;
+}
+.kpi-label { font-size: 13px; color: rgba(255,255,255,0.6); font-weight: 500; }
+.kpi-icon { font-size: 20px; }
+.kpi-icon.blue { color: var(--color-auxiliar); }
+.kpi-icon.green { color: #22c55e; }
+.kpi-icon.orange { color: #f59e0b; }
+.kpi-icon.purple { color: #7C3AED; }
+
+/* KPI Progreso */
+.kpi-categoria { font-size: 18px; font-weight: 700; display: block; margin-bottom: 6px; }
+.kpi-progress-detail { font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 8px; }
 .progress-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
 .progress-fill { height: 100%; background: var(--color-auxiliar); border-radius: 4px; transition: width 0.3s; }
-.hallazgos-warn { color: #f59e0b; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+.hallazgos-warn { color: #f59e0b; font-size: 11px; display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+
+/* KPI Precisión */
+.kpi-precision-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+.kpi-precision-row + .kpi-precision-row { border-top: 1px solid rgba(255,255,255,0.06); }
+.kpi-precision-label { font-size: 13px; color: rgba(255,255,255,0.6); }
+.kpi-precision-value { font-size: 20px; font-weight: 700; }
+
+/* KPI Diferencias */
+.kpi-diff-body { display: flex; align-items: center; gap: 15px; }
+.kpi-diff { display: flex; flex-direction: column; align-items: center; flex: 1; }
+.kpi-diff-value { font-size: 28px; font-weight: 700; }
+.kpi-diff-label { font-size: 10px; text-transform: uppercase; font-weight: 600; color: rgba(255,255,255,0.5); }
+.kpi-diff-divider { width: 1px; height: 40px; background: rgba(255,255,255,0.1); }
+.text-success { color: #22c55e !important; }
+.text-error { color: #ef4444 !important; }
+
+/* KPI Ranking */
+.kpi-ranking-body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.kpi-ranking-pos { font-size: 40px; font-weight: 900; color: var(--color-auxiliar); }
+.kpi-ranking-score { font-size: 13px; color: rgba(255,255,255,0.6); }
+
+/* Responsive KPI */
+@media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .kpi-grid { grid-template-columns: 1fr; } }
 
 /* Finalizar button */
 #finalizar-section { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 50; }

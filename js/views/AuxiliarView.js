@@ -29,8 +29,9 @@ const AuxiliarView = {
                 </div>
                 <nav class="sidebar-nav">
                     <a href="#" class="nav-item active" data-section="ciclico" onclick="AuxiliarView.showSection('ciclico')"><i class="fas fa-clipboard-list"></i><span>Mi Ciclico</span></a>
-                    <a href="#" class="nav-item" data-section="progreso" onclick="AuxiliarView.showSection('progreso')"><i class="fas fa-chart-pie"></i><span>Progreso</span></a>
+                    <a href="#" class="nav-item" onclick="AuxiliarView.showConsultaModal()"><i class="fas fa-search"></i><span>Modo Consulta</span></a>
                     <div class="nav-spacer"></div>
+                    <a href="#" class="nav-item theme-toggle" onclick="AuxiliarView.toggleTheme()"><i class="fas fa-moon"></i><span>Modo Oscuro</span></a>
                     <a href="#" class="nav-item logout" onclick="AuthController.logout()"><i class="fas fa-power-off"></i><span>Cerrar Sesion</span></a>
                 </nav>
             </aside>
@@ -41,21 +42,51 @@ const AuxiliarView = {
                         <button class="mobile-menu" onclick="AuxiliarView.toggleSidebar()"><i class="fas fa-bars"></i></button>
                         <div><h1>Conteo <span class="accent-blue">Ciclico</span></h1><p class="text-dim" id="tarea-info">Cargando...</p></div>
                     </div>
-                    <div class="header-stats"><div class="sync-badge online"><div class="dot"></div><span>ONLINE</span></div></div>
+                    <div class="header-stats">
+                        <div class="cronometro-badge"><i class="fas fa-stopwatch"></i><span id="cronometro" class="cronometro-time">00:00:00</span></div>
+                        <div class="sync-badge online"><div class="dot"></div><span>ONLINE</span></div>
+                    </div>
                 </header>
 
                 <div id="section-ciclico" class="section-content">
                     <div id="sin-tarea" style="display:none;"><div class="empty-state-big"><i class="fas fa-inbox"></i><h2>Sin tarea asignada</h2><p>Espera a que el Jefe te asigne una categoría</p></div></div>
                     <div id="con-tarea" style="display:none;">
                         <section class="search-section glass">
-                            <div class="search-bar"><input type="text" id="buscar-producto" placeholder="Buscar por UPC, SKU o descripcion..." onkeyup="AuxiliarView.filtrarProductos(this.value)"><button class="btn-scan" onclick="AuxiliarView.abrirScanner()"><i class="fas fa-barcode"></i></button></div>
+                            <div class="search-bar"><input type="text" id="buscar-producto" placeholder="Buscar por UPC, SKU o descripcion..." onkeyup="AuxiliarView.filtrarProductos(this.value)"><button class="btn-scan" onclick="AuxiliarView.abrirScanner()"><i class="fas fa-camera"></i></button></div>
                             <button class="btn-hallazgo" onclick="AuxiliarView.reportarHallazgo()"><i class="fas fa-plus"></i> Reportar Hallazgo</button>
                         </section>
-                        <section class="progress-section glass">
-                            <div class="progress-info"><span id="contados-label">0</span> / <span id="total-label">0</span> productos
-                                <span id="hallazgos-pendientes-label" class="hallazgos-warn" style="display:none;"><i class="fas fa-exclamation-triangle"></i> <span id="hallazgos-pend-count">0</span> hallazgo(s) pendiente(s)</span>
+                        <section class="kpi-grid">
+                            <div class="kpi-card glass">
+                                <div class="kpi-header"><span class="kpi-label">Progreso</span><i class="fas fa-clipboard-check kpi-icon blue"></i></div>
+                                <div class="kpi-body">
+                                    <span class="kpi-categoria" id="kpi-categoria">—</span>
+                                    <div class="kpi-progress-detail"><span id="contados-label">0</span> / <span id="total-label">0</span> productos · <span id="kpi-pct">0</span>%</div>
+                                    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+                                    <span id="hallazgos-pendientes-label" class="hallazgos-warn" style="display:none;"><i class="fas fa-exclamation-triangle"></i> <span id="hallazgos-pend-count">0</span> hallazgo(s) pendiente(s)</span>
+                                </div>
                             </div>
-                            <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+                            <div class="kpi-card glass">
+                                <div class="kpi-header"><span class="kpi-label">Precision</span><i class="fas fa-bullseye kpi-icon green"></i></div>
+                                <div class="kpi-body">
+                                    <div class="kpi-precision-row"><span class="kpi-precision-label">Absoluta</span><span class="kpi-precision-value" id="kpi-precision-abs">—</span></div>
+                                    <div class="kpi-precision-row"><span class="kpi-precision-label">Neta</span><span class="kpi-precision-value" id="kpi-precision-net">—</span></div>
+                                </div>
+                            </div>
+                            <div class="kpi-card glass">
+                                <div class="kpi-header"><span class="kpi-label">Diferencias</span><i class="fas fa-exchange-alt kpi-icon orange"></i></div>
+                                <div class="kpi-body kpi-diff-body">
+                                    <div class="kpi-diff"><span class="kpi-diff-value text-success" id="kpi-sobrantes">+0</span><span class="kpi-diff-label">Sobrantes</span></div>
+                                    <div class="kpi-diff-divider"></div>
+                                    <div class="kpi-diff"><span class="kpi-diff-value text-error" id="kpi-faltantes">-0</span><span class="kpi-diff-label">Faltantes</span></div>
+                                </div>
+                            </div>
+                            <div class="kpi-card glass">
+                                <div class="kpi-header"><span class="kpi-label">Mi Ranking</span><i class="fas fa-trophy kpi-icon purple"></i></div>
+                                <div class="kpi-body kpi-ranking-body">
+                                    <span class="kpi-ranking-pos" id="kpi-ranking-pos">—</span>
+                                    <span class="kpi-ranking-score" id="kpi-ranking-score">Score: —</span>
+                                </div>
+                            </div>
                         </section>
                         <section class="tabla-section glass">
                             <div class="tabla-scroll"><table class="tabla-ciclico" id="tabla-productos"><thead><tr>
@@ -70,16 +101,6 @@ const AuxiliarView = {
                     </div>
                 </div>
 
-                <div id="section-progreso" class="section-content" style="display:none;">
-                    <section class="progreso-detalle glass"><h3><i class="fas fa-chart-pie"></i> Resumen</h3>
-                        <div class="stats-grid">
-                            <div class="stat-card"><span class="stat-value" id="stat-total">0</span><span class="stat-label">Total</span></div>
-                            <div class="stat-card"><span class="stat-value" id="stat-contados">0</span><span class="stat-label">Contados</span></div>
-                            <div class="stat-card"><span class="stat-value" id="stat-pendientes">0</span><span class="stat-label">Pendientes</span></div>
-                            <div class="stat-card"><span class="stat-value" id="stat-hallazgos">0</span><span class="stat-label">Hallazgos</span></div>
-                        </div>
-                    </section>
-                </div>
             </main>
         </div>
         ${this.renderModals()}`;
@@ -96,8 +117,42 @@ const AuxiliarView = {
                 .in('estado', ['pendiente', 'en_progreso'])
                 .limit(1);
             if (error || !data || !data.length) return null;
-            await window.db.tareas.put(data[0]);
-            return data[0];
+
+            const remota = data[0];
+            const local = await window.db.tareas.get(remota.id);
+
+            if (!local) {
+                await window.db.tareas.put(remota);
+                return remota;
+            }
+
+            const localContados = local.productos_contados || 0;
+            const remotaContados = remota.productos_contados || 0;
+            const localHallazgos = (local.productos || []).filter(p => p.es_hallazgo).length;
+            const remotaHallazgos = (remota.productos || []).filter(p => p.es_hallazgo).length;
+            const remotaResueltos = (remota.productos || []).filter(p => p.es_hallazgo && p.hallazgo_estado !== 'pendiente').length;
+            const localResueltos = (local.productos || []).filter(p => p.es_hallazgo && p.hallazgo_estado !== 'pendiente').length;
+
+            if (remotaContados >= localContados && remotaResueltos >= localResueltos) {
+                await window.db.tareas.put(remota);
+                return remota;
+            }
+
+            // Local tiene más progreso → mantener local, pero aplicar decisiones del jefe
+            if (remotaResueltos > localResueltos) {
+                for (const rp of (remota.productos || [])) {
+                    if (rp.es_hallazgo && rp.hallazgo_estado !== 'pendiente') {
+                        const li = local.productos.findIndex(p => p.upc === rp.upc && p.es_hallazgo);
+                        if (li !== -1) {
+                            local.productos[li].hallazgo_estado = rp.hallazgo_estado;
+                            local.productos[li].hallazgo_aprobado_por = rp.hallazgo_aprobado_por;
+                            local.productos[li].hallazgo_rechazado_por = rp.hallazgo_rechazado_por;
+                        }
+                    }
+                }
+                await window.db.tareas.put(local);
+            }
+            return local;
         } catch (e) { return null; }
     },
 
@@ -141,6 +196,9 @@ const AuxiliarView = {
         document.getElementById('tarea-info').textContent = `Categoría: ${miTarea.categoria}`;
         this.renderProductos();
         this.actualizarProgreso();
+        this.cargarRanking();
+        // Si ya tiene cronómetro iniciado, restaurar
+        if (miTarea.cronometro_inicio) this.iniciarCronometro();
     },
 
     // ═══ TABLA EXCEL ═══
@@ -193,7 +251,7 @@ const AuxiliarView = {
             }
 
             let diffClass = '';
-            if (completo) { if (diferencia < 0) diffClass = 'diff-falta'; else if (diferencia > 0) diffClass = 'diff-sobra'; }
+            if (completo) { if (diferencia < 0) diffClass = 'diff-falta'; else if (diferencia > 0) diffClass = 'diff-sobra'; else diffClass = 'diff-cero'; }
 
             let rowClass = '';
             if (hEstado === 'pendiente') rowClass = 'row-hallazgo-pendiente';
@@ -246,10 +304,21 @@ const AuxiliarView = {
 
         const p = this.tareaActual.productos[this.productoSeleccionado];
         if (!p.conteos) p.conteos = [];
-        p.conteos.push({ cantidad, ubicacion: ubicacion.toUpperCase(), timestamp: new Date().toISOString() });
+        const ubicUpper = ubicacion.toUpperCase();
+        const existente = p.conteos.findIndex(c => c.ubicacion === ubicUpper);
+        if (existente !== -1) {
+            if (!await window.ZENGO?.confirm(`Ya existe un conteo en ${ubicUpper} con cantidad ${p.conteos[existente].cantidad}. ¿Reemplazar?`, 'Duplicado detectado')) return;
+            p.conteos[existente].cantidad = cantidad;
+            p.conteos[existente].timestamp = new Date().toISOString();
+        } else {
+            p.conteos.push({ cantidad, ubicacion: ubicUpper, timestamp: new Date().toISOString() });
+        }
         p.total = p.conteos.reduce((s, c) => s + c.cantidad, 0);
         p.diferencia = p.total - p.existencia;
         this.tareaActual.productos_contados = this.tareaActual.productos.filter(x => x.conteos && x.conteos.length > 0).length;
+
+        // Iniciar cronómetro en primer conteo
+        if (!this.cronometroInicio) this.iniciarCronometro();
 
         await window.db.tareas.put(this.tareaActual);
         await this.syncTareaToSupabase();
@@ -310,6 +379,60 @@ const AuxiliarView = {
     },
 
     // ═══ PROGRESO Y FINALIZACION ═══
+    cronometroInterval: null,
+    cronometroInicio: null,
+
+    iniciarCronometro() {
+        if (this.cronometroInterval) return;
+        if (!this.tareaActual) return;
+        // Restaurar inicio guardado o marcar ahora
+        if (this.tareaActual.cronometro_inicio) {
+            this.cronometroInicio = new Date(this.tareaActual.cronometro_inicio).getTime();
+        } else {
+            this.cronometroInicio = Date.now();
+            this.tareaActual.cronometro_inicio = new Date().toISOString();
+            window.db.tareas.put(this.tareaActual);
+        }
+        this.cronometroInterval = setInterval(() => this.actualizarCronometro(), 1000);
+        this.actualizarCronometro();
+    },
+
+    actualizarCronometro() {
+        if (!this.cronometroInicio) return;
+        const elapsed = Math.floor((Date.now() - this.cronometroInicio) / 1000);
+        const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+        const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+        const s = String(elapsed % 60).padStart(2, '0');
+        const el = document.getElementById('cronometro');
+        if (el) el.textContent = `${h}:${m}:${s}`;
+    },
+
+    detenerCronometro() {
+        if (this.cronometroInterval) { clearInterval(this.cronometroInterval); this.cronometroInterval = null; }
+        this.cronometroInicio = null;
+    },
+
+    calcularPrecision() {
+        if (!this.tareaActual) return { absoluta: 0, neta: 0, score: 0 };
+        const prods = this.tareaActual.productos || [];
+        const contados = prods.filter(p => p.conteos && p.conteos.length > 0 && (!p.es_hallazgo || p.hallazgo_estado === 'aprobado'));
+        if (!contados.length) return { absoluta: 0, neta: 0, score: 0 };
+
+        let sumTeorico = 0, sumAbsError = 0, sumNetError = 0;
+        contados.forEach(p => {
+            const teorico = p.existencia || 0;
+            const fisico = p.total || 0;
+            sumTeorico += teorico;
+            sumAbsError += Math.abs(fisico - teorico);
+            sumNetError += (fisico - teorico);
+        });
+
+        const absoluta = sumTeorico > 0 ? Math.max(0, (1 - sumAbsError / sumTeorico) * 100) : 100;
+        const neta = sumTeorico > 0 ? Math.max(0, (1 - Math.abs(sumNetError) / sumTeorico) * 100) : 100;
+        const score = absoluta * 0.6 + neta * 0.4;
+        return { absoluta: Math.round(absoluta * 10) / 10, neta: Math.round(neta * 10) / 10, score: Math.round(score * 10) / 10 };
+    },
+
     actualizarProgreso() {
         if (!this.tareaActual) return;
         const prods = this.tareaActual.productos || [];
@@ -317,24 +440,105 @@ const AuxiliarView = {
         const total = contables.length;
         const contados = contables.filter(p => p.conteos && p.conteos.length > 0).length;
         const hPend = prods.filter(p => p.es_hallazgo && p.hallazgo_estado === 'pendiente').length;
-        const hTotal = prods.filter(p => p.es_hallazgo).length;
         const pct = total > 0 ? Math.round((contados / total) * 100) : 0;
 
+        // KPI Progreso
         document.getElementById('contados-label').textContent = contados;
         document.getElementById('total-label').textContent = total;
+        document.getElementById('kpi-pct').textContent = pct;
         document.getElementById('progress-fill').style.width = pct + '%';
+        document.getElementById('kpi-categoria').textContent = this.tareaActual.categoria || '—';
 
+        // Hallazgos pendientes
         const hw = document.getElementById('hallazgos-pendientes-label');
         if (hPend > 0) { hw.style.display = 'inline'; document.getElementById('hallazgos-pend-count').textContent = hPend; }
         else { hw.style.display = 'none'; }
 
-        document.getElementById('stat-total').textContent = total;
-        document.getElementById('stat-contados').textContent = contados;
-        document.getElementById('stat-pendientes').textContent = total - contados;
-        document.getElementById('stat-hallazgos').textContent = hTotal;
+        // KPI Precisión
+        const prec = this.calcularPrecision();
+        document.getElementById('kpi-precision-abs').textContent = contados > 0 ? prec.absoluta + '%' : '—';
+        document.getElementById('kpi-precision-net').textContent = contados > 0 ? prec.neta + '%' : '—';
 
+        // KPI Diferencias (sobrantes/faltantes)
+        let sobrantes = 0, faltantes = 0;
+        contables.forEach(p => {
+            if (p.conteos && p.conteos.length > 0) {
+                const dif = (p.total || 0) - (p.existencia || 0);
+                if (dif > 0) sobrantes += dif;
+                else if (dif < 0) faltantes += Math.abs(dif);
+            }
+        });
+        document.getElementById('kpi-sobrantes').textContent = '+' + sobrantes;
+        document.getElementById('kpi-faltantes').textContent = '-' + faltantes;
+
+        // Finalizar
         document.getElementById('finalizar-section').style.display =
             (contados === total && total > 0 && hPend === 0) ? 'block' : 'none';
+    },
+
+    async actualizarRankingUsuario(prec) {
+        try {
+            const session = JSON.parse(localStorage.getItem('zengo_session') || '{}');
+            const usuario = await window.db.usuarios.get(session.id);
+            if (!usuario) return;
+
+            const hist = usuario.precision_historica || { absoluta_acum: 0, neta_acum: 0, score: 0 };
+            const ciclos = (usuario.ciclicos_completados || 0) + 1;
+
+            // Promedio acumulado
+            const absAcum = ((hist.absoluta_acum * (ciclos - 1)) + prec.absoluta) / ciclos;
+            const netAcum = ((hist.neta_acum * (ciclos - 1)) + prec.neta) / ciclos;
+            const scoreAcum = Math.round((absAcum * 0.6 + netAcum * 0.4) * 10) / 10;
+
+            const nuevaHist = {
+                absoluta_acum: Math.round(absAcum * 10) / 10,
+                neta_acum: Math.round(netAcum * 10) / 10,
+                score: scoreAcum
+            };
+
+            // Guardar en Dexie
+            await window.db.usuarios.update(session.id, {
+                precision_historica: nuevaHist,
+                ciclicos_completados: ciclos
+            });
+
+            // Guardar en Supabase
+            try {
+                if (navigator.onLine && window.supabaseClient) {
+                    await window.supabaseClient.from('profiles').update({
+                        precision_historica: nuevaHist,
+                        ciclicos_completados: ciclos
+                    }).eq('id', session.id);
+                } else {
+                    await window.SyncManager?.addToQueue('profiles', 'update', {
+                        id: session.id,
+                        changes: { precision_historica: nuevaHist, ciclicos_completados: ciclos }
+                    });
+                }
+            } catch (e) { console.warn('Sync ranking falló:', e); }
+        } catch (e) { console.warn('Error actualizando ranking:', e); }
+    },
+
+    async cargarRanking() {
+        try {
+            const session = JSON.parse(localStorage.getItem('zengo_session') || '{}');
+            const auxiliares = await window.AuthModel?.getAuxiliares() || [];
+            const conScore = auxiliares.filter(a => a.precision_historica && a.ciclicos_completados > 0)
+                .sort((a, b) => (b.precision_historica?.score || 0) - (a.precision_historica?.score || 0));
+            const miPos = conScore.findIndex(a => a.id === session.id);
+            const posEl = document.getElementById('kpi-ranking-pos');
+            const scoreEl = document.getElementById('kpi-ranking-score');
+            if (miPos !== -1) {
+                posEl.textContent = '#' + (miPos + 1);
+                scoreEl.textContent = 'Score: ' + (conScore[miPos].precision_historica?.score || 0) + '%';
+            } else {
+                posEl.textContent = '—';
+                scoreEl.textContent = 'Sin datos';
+            }
+        } catch (e) {
+            document.getElementById('kpi-ranking-pos').textContent = '—';
+            document.getElementById('kpi-ranking-score').textContent = 'Sin datos';
+        }
     },
 
     async confirmarFinalizacion() {
@@ -345,10 +549,21 @@ const AuxiliarView = {
         }
         if (!await window.ZENGO?.confirm('¿Finalizar? Una vez enviado no podrás modificar.\n\n¿Deseas agregar algún hallazgo antes?', 'Confirmar')) return;
 
+        this.detenerCronometro();
         this.tareaActual.estado = 'finalizado_auxiliar';
         this.tareaActual.fecha_finalizacion = new Date().toISOString();
+
+        // Calcular precisión del cíclico
+        const prec = this.calcularPrecision();
+        this.tareaActual.precision_absoluta = prec.absoluta;
+        this.tareaActual.precision_neta = prec.neta;
+        this.tareaActual.precision_score = prec.score;
+
         await window.db.tareas.put(this.tareaActual);
         const synced = await this.syncTareaToSupabase();
+
+        // Actualizar ranking del auxiliar
+        await this.actualizarRankingUsuario(prec);
 
         window.ZENGO?.toast(synced ? 'Cíclico finalizado y enviado al Jefe ✓' : 'Finalizado (pendiente sincronizar)', synced ? 'success' : 'warning');
 
@@ -373,12 +588,24 @@ const AuxiliarView = {
 
     // ═══ UI ═══
     toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); },
+    toggleTheme() { document.body.classList.toggle('light-mode'); },
     showSection(id) {
         document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
         document.getElementById(`section-${id}`).style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.querySelector(`[data-section="${id}"]`)?.classList.add('active');
     },
+    showConsultaModal() { document.getElementById('aux-consulta-modal').style.display = 'flex'; },
+
+    async buscarProductoConsulta() {
+        const t = document.getElementById('aux-consulta-input').value.trim();
+        if (!t) return;
+        const r = await window.InventoryModel.buscarProducto(t);
+        document.getElementById('aux-consulta-resultado').innerHTML = r.length
+            ? `<div class="consulta-card"><h4>${r[0].descripcion}</h4><div class="consulta-grid"><div><small>UPC</small><code>${r[0].upc}</code></div><div><small>SKU</small><strong>${r[0].sku}</strong></div><div><small>Existencia</small><strong>${r[0].existencia}</strong></div><div><small>Categoria</small><strong>${r[0].categoria}</strong></div></div></div>`
+            : '<div class="empty-state"><p>No encontrado</p></div>';
+    },
+
     closeModal() {
         document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
         if (this.scannerStream) this.scannerStream.getTracks().forEach(t => t.stop());
@@ -404,6 +631,10 @@ const AuxiliarView = {
                 <div class="form-group"><label>Descripción</label><input type="text" id="hallazgo-desc" placeholder="Descripción del producto"></div>
             </div>
             <div class="modal-footer"><button class="btn-secondary" onclick="AuxiliarView.closeModal()">Cancelar</button><button class="btn-primary" onclick="AuxiliarView.guardarHallazgo()"><i class="fas fa-paper-plane"></i> Reportar</button></div>
+        </div></div>
+        <div id="aux-consulta-modal" class="modal-overlay" style="display:none;"><div class="modal-content glass">
+            <div class="modal-header"><h2><i class="fas fa-search"></i> Consulta</h2><button class="modal-close" onclick="AuxiliarView.closeModal()"><i class="fas fa-times"></i></button></div>
+            <div class="modal-body"><div class="search-bar"><input type="text" id="aux-consulta-input" placeholder="UPC, SKU o descripcion..."><button class="btn-primary" onclick="AuxiliarView.buscarProductoConsulta()"><i class="fas fa-search"></i></button></div><div id="aux-consulta-resultado"></div></div>
         </div></div>
         <div id="scanner-modal" class="modal-overlay" style="display:none;"><div class="modal-content glass">
             <div class="modal-header"><h2><i class="fas fa-barcode"></i> Escanear</h2><button class="modal-close" onclick="AuxiliarView.cerrarScanner()"><i class="fas fa-times"></i></button></div>

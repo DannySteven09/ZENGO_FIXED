@@ -22,7 +22,7 @@ const JefeView = {
                 </div>
                 <div class="user-card">
                     <div class="user-avatar jefe"><i class="fas fa-user-tie"></i></div>
-                    <div class="user-info"><span class="user-name">${session.name || 'Jefe'}</span><span class="user-role">SUPERVISOR</span></div>
+                    <div class="user-info"><span class="user-name">${session.name || 'Jefe'}</span><span class="user-role">JEFATURA</span></div>
                 </div>
                 <nav class="sidebar-nav">
                     <a href="#" class="nav-item active" data-section="mando" onclick="JefeView.showSection('mando')"><i class="fas fa-satellite-dish"></i><span>Mando Central</span></a>
@@ -31,12 +31,13 @@ const JefeView = {
                     <a href="#" class="nav-item" data-section="revisar" onclick="JefeView.showSection('revisar')"><i class="fas fa-clipboard-check"></i><span>Revisar Ciclicos</span></a>
                     <a href="#" class="nav-item" onclick="JefeView.showConsultaModal()"><i class="fas fa-search"></i><span>Modo Consulta</span></a>
                     <div class="nav-spacer"></div>
+                    <a href="#" class="nav-item theme-toggle" onclick="JefeView.toggleTheme()"><i class="fas fa-moon"></i><span>Modo Oscuro</span></a>
                     <a href="#" class="nav-item logout" onclick="AuthController.logout()"><i class="fas fa-power-off"></i><span>Cerrar Turno</span></a>
                 </nav>
             </aside>
             <main class="main-content">
                 <header class="top-header glass">
-                    <div class="header-left"><button class="mobile-menu" onclick="JefeView.toggleSidebar()"><i class="fas fa-bars"></i></button><div><h1>Panel de <span class="accent-purple">Supervision</span></h1><p class="text-dim">Control de Cíclicos</p></div></div>
+                    <div class="header-left"><button class="mobile-menu" onclick="JefeView.toggleSidebar()"><i class="fas fa-bars"></i></button><div><h1>Panel de <span class="accent-purple">Jefatura</span></h1><p class="text-dim">Control de Cíclicos</p></div></div>
                     <div class="header-stats"><div class="sync-badge online"><div class="dot"></div><span>ONLINE</span></div><button class="btn-refresh" onclick="JefeView.refreshAll()"><i class="fas fa-sync-alt"></i></button></div>
                 </header>
 
@@ -99,9 +100,30 @@ const JefeView = {
             if (!navigator.onLine || !window.supabaseClient) return;
             const { data, error } = await window.supabaseClient.from('tareas').select('*');
             if (error || !data) return;
-            await window.db.tareas.clear();
-            for (const t of data) await window.db.tareas.put(t);
-        } catch (e) { console.warn('Sync tareas fallido'); }
+
+            for (const remota of data) {
+                const local = await window.db.tareas.get(remota.id);
+                if (!local) {
+                    await window.db.tareas.put(remota);
+                } else {
+                    const localContados = local.productos_contados || 0;
+                    const remotaContados = remota.productos_contados || 0;
+                    const localHallazgos = (local.productos || []).filter(p => p.es_hallazgo).length;
+                    const remotaHallazgos = (remota.productos || []).filter(p => p.es_hallazgo).length;
+
+                    if (remotaContados > localContados || remotaHallazgos > localHallazgos) {
+                        await window.db.tareas.put(remota);
+                    } else if (remotaContados === localContados && remotaHallazgos === localHallazgos) {
+                        const remotaAprobados = (remota.productos || []).filter(p => p.es_hallazgo && p.hallazgo_estado !== 'pendiente').length;
+                        const localAprobados = (local.productos || []).filter(p => p.es_hallazgo && p.hallazgo_estado !== 'pendiente').length;
+                        if (remotaAprobados >= localAprobados) {
+                            await window.db.tareas.put(remota);
+                        }
+                    }
+                    // Si local tiene más progreso → no sobrescribir
+                }
+            }
+        } catch (e) { console.warn('Sync tareas fallido:', e); }
     },
 
     async syncTareaToSupabase(tarea) {
@@ -362,7 +384,10 @@ async loadAuxiliares() {
                 if (p.hallazgo_reportado_por) badges += `<span class="pill-badge celeste">${p.hallazgo_reportado_por}</span>`;
                 if (p.hallazgo_aprobado_por) badges += `<span class="pill-badge purpura">✓ ${p.hallazgo_aprobado_por}</span>`;
             }
-            if (p.modificaciones) p.modificaciones.forEach(m => { badges += `<span class="pill-badge ${m.color}">${m.nombre}</span>`; });
+            if (p.modificaciones && p.modificaciones.length) {
+                const nombres = [...new Set(p.modificaciones.map(m => m.nombre))];
+                nombres.forEach(n => { badges += `<span class="pill-badge purpura">${n}</span>`; });
+            }
 
             let cantH = '<span class="sin-conteo">—</span>';
             if (comp) cantH = p.conteos.map((c, ci) => `<div class="conteo-inline"><span class="conteo-cant">${c.cantidad}</span><button class="btn-edit-mini" onclick="JefeView.editarConteoRevision(${i},${ci})"><i class="fas fa-pen"></i></button><button class="btn-del-mini" onclick="JefeView.eliminarConteoRevision(${i},${ci})"><i class="fas fa-times"></i></button></div>`).join('');
@@ -371,7 +396,7 @@ async loadAuxiliares() {
             if (comp) ubicH = p.conteos.map(c => `<div class="ubic-inline">${c.ubicacion}</div>`).join('');
 
             let dc = '';
-            if (comp) { if (dif < 0) dc = 'diff-falta'; else if (dif > 0) dc = 'diff-sobra'; }
+            if (comp) { if (dif < 0) dc = 'diff-falta'; else if (dif > 0) dc = 'diff-sobra'; else dc = 'diff-cero'; }
             let rc = esH ? 'row-hallazgo-aprobado' : (comp ? 'row-completo' : '');
 
             return `<tr class="${rc}">
@@ -478,6 +503,7 @@ async loadAuxiliares() {
 
     // ═══ UI ═══
     toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); },
+    toggleTheme() { document.body.classList.toggle('light-mode'); },
 
     showSection(id) {
         document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
