@@ -573,7 +573,7 @@ const AuxiliarView = {
             window.ZENGO?.toast(`${pend.length} hallazgo(s) pendiente(s). El Jefe debe aprobarlos.`, 'error', 5000);
             return;
         }
-        if (!await window.ZENGO?.confirm('¿Finalizar? Una vez enviado no podrás modificar.\n\n¿Deseas agregar algún hallazgo antes?', 'Confirmar')) return;
+        if (!await window.ZENGO?.confirm('¿Confirmar cierre de conteo cíclico?\n\nLos datos no podrán modificarse tras la confirmación.', 'Confirmar')) return;
 
         this.detenerCronometro();
         this.tareaActual.estado = 'finalizado_auxiliar';

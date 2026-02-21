@@ -530,7 +530,7 @@ async loadAuxiliares() {
     },
 
     async entregarAAdmin() {
-        if (!await window.ZENGO?.confirm('¿Entregar a Administracion?\n\nVerifica que todo este correcto.', 'Confirmar entrega')) return;
+        if (!await window.ZENGO?.confirm('¿Confirmar entrega a Administración?\n\nLos datos no podrán modificarse tras la confirmación.', 'Confirmar entrega')) return;
         const s = JSON.parse(localStorage.getItem('zengo_session') || '{}');
         this.revisionActual.estado = 'aprobado_jefe';
         this.revisionActual.aprobado_por = s.name;

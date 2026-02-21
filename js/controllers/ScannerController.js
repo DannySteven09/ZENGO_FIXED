@@ -56,6 +56,9 @@ const ScannerController = {
             return false;
         }
 
+        // Limpiar cualquier instancia previa antes de reinicializar
+        try { Quagga.stop(); Quagga.offDetected(); } catch(e) {}
+
         Quagga.init({
             inputStream: {
                 name: 'Live',
