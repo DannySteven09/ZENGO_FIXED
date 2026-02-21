@@ -1,10 +1,10 @@
-// ZENGO Service Worker v1.5.0 — Estructura MVC
-const CACHE_NAME = 'zengo-v1.5.0';
+// ZENGO Service Worker v1.5.1 — Estructura MVC
+const CACHE_NAME = 'zengo-v1.5.1';
 const ASSETS = [
     '/', '/index.html',
     // CSS
     '/css/base.css', '/css/layout.css', '/css/components.css',
-    '/css/tables.css', '/css/jefe.css', '/css/auxiliar.css', '/css/main.css',
+    '/css/tables.css', '/css/jefe.css', '/css/auxiliar.css', '/css/main.css', '/css/scanner.css',
     // Config
     '/js/config/supabase.js', '/js/config/dexie-db.js',
     // Models
@@ -55,4 +55,4 @@ self.addEventListener('fetch', e => {
     );
 });
 
-console.log('[SW] v1.5.0 — Estructura MVC');
+console.log('[SW] v1.5.1 — Estructura MVC');

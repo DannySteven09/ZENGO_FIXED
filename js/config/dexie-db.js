@@ -80,6 +80,7 @@ db.clearAll = async function() {
     await db.hallazgos.clear();
     await db.conteos.clear();
     await db.ubicaciones.clear();
+    
     await db.sync_queue.clear();
     await db.usuarios.clear();
     console.log('✓ Dexie: Todas las tablas limpiadas (incluye usuarios)');

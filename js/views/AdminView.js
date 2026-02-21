@@ -38,7 +38,7 @@ const AdminView = {
                         <i class="fas fa-file-upload"></i> <span>Cargar NetSuite</span>
                         <input type="file" id="excel-input" hidden accept=".xlsx,.xls,.csv" onchange="AdminController.handleNetsuiteImport(event)">
                     </label>
-                    <a href="#" class="nav-item" data-section="consulta" onclick="AdminView.showConsultaModal()">
+                    <a href="#" class="nav-item" data-section="consulta" onclick="AdminView.showSection('consulta')">
                         <i class="fas fa-search"></i> <span>Modo Consulta</span>
                     </a>
                     <a href="#" class="nav-item" data-section="merma" onclick="AdminView.showSection('merma')">
@@ -185,6 +185,35 @@ const AdminView = {
                         </div>
                     </section>
                 </div>
+
+                <!-- MODO CONSULTA -->
+                <div id="section-consulta" class="section-content" style="display:none;">
+                    <section class="consulta-v2-wrap">
+                        <div class="consulta-v2-searchbar glass">
+                            <input type="text" id="admin-consulta-input" placeholder="Buscar por descripcion, UPC o SKU..." onkeyup="if(event.key==='Enter')AdminView.ejecutarConsulta()">
+                            <button class="btn-consultar" style="background:var(--primary)" onclick="AdminView.ejecutarConsulta()">Consultar</button>
+                        </div>
+                        <div class="consulta-v2-body">
+                            <div class="consulta-v2-camera glass">
+                                <div class="consulta-v2-cam-header">
+                                    <span><i class="fas fa-camera"></i> Escaner</span>
+                                    <span class="consulta-activo-badge">Activo</span>
+                                </div>
+                                <div class="consulta-v2-video-wrap">
+                                    <div id="admin-consulta-video"></div>
+                                    <div class="consulta-scan-line"></div>
+                                </div>
+                                <div class="consulta-v2-status" id="admin-consulta-status">
+                                    <i class="fas fa-barcode"></i> Apunta al codigo de barras
+                                </div>
+                            </div>
+                            <div class="consulta-v2-resultado glass" id="admin-consulta-resultado">
+                                <div class="empty-state"><i class="fas fa-search"></i><p>Busca un producto por descripcion, UPC o SKU</p></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
             </main>
         </div>
         ${this.renderModals()}
@@ -228,7 +257,7 @@ const AdminView = {
                         <div class="form-group"><label>Apellido</label><input type="text" id="usuario-apellido"></div>
                         <div class="form-group"><label>Email</label><input type="email" id="usuario-email" required></div>
                         <div class="form-group"><label>Contraseña</label><input type="password" id="usuario-password" placeholder="Dejar vacío para mantener"></div>
-                        <div class="form-group"><label>Rol</label><select id="usuario-role" required><option value="">Seleccionar...</option><option value="ADMIN">Administrador</option><option value="JEFE">Jefe de Bodega</option><option value="AUXILIAR">Auxiliar</option></select></div>
+                        <div class="form-group"><label>Rol</label><select id="usuario-role" required><option value="">Seleccionar...</option><option value="ADMIN">Administrador</option><option value="JEFE">Jefe</option><option value="AUXILIAR">Auxiliar</option></select></div>
                     </form>
                 </div>
                 <div class="modal-footer"><button class="btn-secondary" onclick="AdminView.closeModal()">Cancelar</button><button class="btn-primary" onclick="AdminView.guardarUsuario()"><i class="fas fa-save"></i> Guardar</button></div>
@@ -341,28 +370,55 @@ const AdminView = {
     toggleTheme() { document.body.classList.toggle('light-mode'); },
 
     showSection(sectionId) {
+        ScannerController.detenerScannerConsulta();
         document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
         const section = document.getElementById(`section-${sectionId}`);
         if (section) section.style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.querySelector(`[data-section="${sectionId}"]`)?.classList.add('active');
+        if (sectionId === 'consulta') this._iniciarScannerConsulta();
         if (sectionId === 'usuarios') this.loadUsuarios();
     },
 
-    showConsultaModal() { document.getElementById('consulta-modal').style.display = 'flex'; document.getElementById('admin-consulta-input')?.focus(); },
     closeModal() { document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none'); },
     filterLogs(q) { document.querySelectorAll('.log-row').forEach(r => r.style.display = r.innerText.toLowerCase().includes(q.toLowerCase()) ? '' : 'none'); },
     async refreshData() { window.ZENGO?.toast('Actualizando...', 'info'); await this.loadDashboardData(); window.ZENGO?.toast('Actualizado', 'success'); },
 
-    async buscarProducto() {
-        const code = document.getElementById('admin-consulta-input')?.value?.trim();
-        if (!code) return;
-        const resultado = await window.ScannerController.consultarProducto(code);
-        const container = document.getElementById('admin-consulta-resultado');
-        if (resultado.encontrado) {
-            const p = resultado.producto;
-            container.innerHTML = `<div class="consulta-card"><h4>${p.descripcion || 'Producto'}</h4><div class="consulta-grid"><div><small>UPC</small><code>${p.upc}</code></div><div><small>Stock</small><strong>${p.stock_sistema || 0}</strong></div><div><small>Categoría</small><strong>${p.categoria_id || 'General'}</strong></div><div><small>Precio</small><strong>₡${(p.precio || 0).toLocaleString()}</strong></div></div></div>`;
-        } else { container.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No encontrado</p></div>'; }
+    // ═══ MODO CONSULTA ═══
+    async ejecutarConsulta() {
+        const term = document.getElementById('admin-consulta-input')?.value.trim();
+        if (!term) return;
+        const panel = document.getElementById('admin-consulta-resultado');
+        const resultados = await ScannerController.buscarProductos(term);
+        if (!resultados.length) {
+            panel.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>Sin resultados</p></div>';
+            return;
+        }
+        if (resultados.length === 1) {
+            const r = await ScannerController.consultarProducto(resultados[0].upc);
+            if (r.encontrado) panel.innerHTML = ScannerController.renderConsultaDetalle(r.producto, r.ubicaciones);
+            return;
+        }
+        panel.innerHTML = `<div class="consulta-lista">${resultados.map(p =>
+            `<div class="consulta-lista-item" onclick="AdminView.verDetalleConsulta('${p.upc}')">
+                <span class="consulta-lista-upc">${p.upc || '—'}</span>
+                <span class="consulta-lista-desc">${p.descripcion || '—'}</span>
+                <span class="consulta-lista-meta">₡${(p.precio||0).toLocaleString()} · Existencia: ${p.existencia||0}</span>
+            </div>`).join('')}</div>`;
+    },
+
+    async verDetalleConsulta(upc) {
+        const r = await ScannerController.consultarProducto(upc);
+        const panel = document.getElementById('admin-consulta-resultado');
+        if (r.encontrado) panel.innerHTML = ScannerController.renderConsultaDetalle(r.producto, r.ubicaciones);
+    },
+
+    _iniciarScannerConsulta() {
+        ScannerController.iniciarScannerConsulta('admin-consulta-video', (code) => {
+            document.getElementById('admin-consulta-status').innerHTML =
+                `<i class="fas fa-check-circle" style="color:var(--success)"></i> Detectado: <code>${code}</code>`;
+            this.verDetalleConsulta(code);
+        });
     },
 
     async loadDashboardData() {

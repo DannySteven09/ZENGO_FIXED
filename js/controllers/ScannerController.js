@@ -1,197 +1,286 @@
 // ═══════════════════════════════════════════════════════════════
-// ZENGO - Controlador de Scanner
-// Maneja escaneo de códigos y búsqueda de productos
+// ZENGO - Controlador de Scanner v2.0
+// Escaneo real con QuaggaJS + búsqueda de productos
 // ═══════════════════════════════════════════════════════════════
 
 const ScannerController = {
     isScanning: false,
-    currentStream: null,
+    scanCallback: null,
 
-    // ═══════════════════════════════════════════════════════════
-    // BUSCAR PRODUCTO POR CÓDIGO
-    // ═══════════════════════════════════════════════════════════
+    // ═══ BUSCAR PRODUCTO EN TODA LA BD ═══
     async consultarProducto(codigo) {
-        if (!codigo) {
-            return { encontrado: false, producto: null, ubicaciones: [] };
-        }
-
+        if (!codigo) return { encontrado: false, producto: null, ubicaciones: [] };
         codigo = codigo.trim().toUpperCase();
 
         try {
-            // Buscar primero por UPC
             let producto = await window.db.productos.where('upc').equals(codigo).first();
-            
-            // Si no encuentra, buscar por SKU
-            if (!producto) {
-                producto = await window.db.productos.where('sku').equals(codigo).first();
-            }
-
-            // Búsqueda parcial si no encuentra exacto
+            if (!producto) producto = await window.db.productos.where('sku').equals(codigo).first();
             if (!producto) {
                 const todos = await window.db.productos.toArray();
-                producto = todos.find(p => 
-                    p.upc?.includes(codigo) || 
-                    p.sku?.includes(codigo) ||
+                producto = todos.find(p =>
+                    p.upc?.includes(codigo) || p.sku?.toUpperCase().includes(codigo) ||
                     p.descripcion?.toUpperCase().includes(codigo)
                 );
             }
 
             if (producto) {
-                // Obtener ubicaciones históricas
+                // Solo ubicaciones canónicas: las guardadas al momento de aprobado_jefe
                 const ubicaciones = await window.LocationModel.getUbicacionesUnicas(producto.upc);
-                
-                return {
-                    encontrado: true,
-                    producto: producto,
-                    ubicaciones: ubicaciones
-                };
+                return { encontrado: true, producto, ubicaciones };
             }
-
             return { encontrado: false, producto: null, ubicaciones: [] };
-
         } catch (err) {
             console.error('Error consultando producto:', err);
             return { encontrado: false, producto: null, ubicaciones: [] };
         }
     },
 
-    // ═══════════════════════════════════════════════════════════
-    // ABRIR CÁMARA PARA ESCANEO
-    // ═══════════════════════════════════════════════════════════
-    async openCameraScanner(callback) {
-        if (this.isScanning) {
-            this.closeScanner();
-            return;
+    // ═══ BUSCAR MÚLTIPLES RESULTADOS ═══
+    async buscarProductos(termino) {
+        if (!termino) return [];
+        termino = termino.trim().toUpperCase();
+        try {
+            const todos = await window.db.productos.toArray();
+            return todos.filter(p =>
+                p.upc?.includes(termino) || p.sku?.toUpperCase().includes(termino) ||
+                p.descripcion?.toUpperCase().includes(termino)
+            ).slice(0, 50);
+        } catch (e) { return []; }
+    },
+
+    // ═══ INICIAR QUAGGA EN UN CONTENEDOR ═══
+    // continuous=true: no detiene la cámara tras cada detección (modo consulta)
+    startQuagga(containerId, onDetected, continuous = false) {
+        if (typeof Quagga === 'undefined') {
+            console.warn('QuaggaJS no disponible');
+            return false;
         }
 
-        // Crear modal de cámara
-        const modal = document.createElement('div');
-        modal.id = 'camera-modal';
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-content glass" style="max-width: 500px; padding: 0; overflow: hidden;">
-                <div class="modal-header" style="padding: 15px 20px;">
-                    <h3><i class="fas fa-camera"></i> Escanear Código</h3>
-                    <button class="modal-close" onclick="ScannerController.closeScanner()">
-                        <i class="fas fa-times"></i>
-                    </button>
+        Quagga.init({
+            inputStream: {
+                name: 'Live',
+                type: 'LiveStream',
+                target: document.getElementById(containerId),
+                constraints: {
+                    facingMode: 'environment',
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                }
+            },
+            decoder: {
+                readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader']
+            },
+            locate: true,
+            frequency: 10
+        }, (err) => {
+            if (err) {
+                console.warn('Quagga init error:', err);
+                return;
+            }
+            Quagga.start();
+            this.isScanning = true;
+        });
+
+        // Detección con filtro de confianza
+        let lastCode = null;
+        let codeCount = 0;
+
+        Quagga.onDetected((result) => {
+            const code = result.codeResult.code;
+            if (!code) return;
+
+            // Requiere 3 lecturas consecutivas del mismo código para confirmar
+            if (code === lastCode) {
+                codeCount++;
+                if (codeCount >= 3) {
+                    if (!continuous) this.stopQuagga();
+                    onDetected(code);
+                    lastCode = null;
+                    codeCount = 0;
+                }
+            } else {
+                lastCode = code;
+                codeCount = 1;
+            }
+        });
+
+        return true;
+    },
+
+    // ═══ DETENER QUAGGA ═══
+    stopQuagga() {
+        try {
+            if (typeof Quagga !== 'undefined' && this.isScanning) {
+                Quagga.stop();
+                Quagga.offDetected();
+            }
+        } catch (e) {}
+        this.isScanning = false;
+    },
+
+    // ═══ ESCANEO PARA CÍCLICO (auxiliar) ═══
+    abrirScannerCiclico(productos, onFound, onNotFound) {
+        const overlay = document.createElement('div');
+        overlay.id = 'scanner-ciclico-overlay';
+        overlay.className = 'scanner-overlay-ciclico';
+        overlay.innerHTML = `
+            <div class="scanner-ciclico-panel glass">
+                <div class="scanner-ciclico-header">
+                    <span><i class="fas fa-camera"></i> Escanear producto</span>
+                    <button onclick="ScannerController.cerrarScannerCiclico()"><i class="fas fa-times"></i></button>
                 </div>
-                <div class="camera-container" style="position: relative; background: #000;">
-                    <video id="scanner-video" autoplay playsinline style="width: 100%; display: block;"></video>
-                    <div class="scan-overlay" style="
-                        position: absolute; top: 50%; left: 50%;
-                        transform: translate(-50%, -50%);
-                        width: 80%; height: 100px;
-                        border: 2px solid var(--admin-red);
-                        border-radius: 10px;
-                        box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
-                    "></div>
+                <div id="scanner-ciclico-video" class="scanner-ciclico-video">
+                    <div class="scanner-scan-line"></div>
                 </div>
-                <div style="padding: 20px; text-align: center;">
-                    <p style="color: rgba(255,255,255,0.6); font-size: 14px;">
-                        <i class="fas fa-info-circle"></i> Coloca el código de barras dentro del recuadro
-                    </p>
-                    <div style="margin-top: 15px;">
-                        <input type="text" id="manual-code-input" placeholder="O ingresa el código manualmente..." 
-                               style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
-                                      background: rgba(255,255,255,0.05); color: white; font-size: 16px;">
-                    </div>
-                    <button onclick="ScannerController.submitManualCode()" class="btn-primary" style="margin-top: 10px; width: 100%;">
-                        <i class="fas fa-search"></i> Buscar
-                    </button>
+                <div class="scanner-ciclico-status" id="scanner-ciclico-status">
+                    <i class="fas fa-barcode"></i> Apunta al codigo de barras
+                </div>
+                <div class="scanner-ciclico-manual">
+                    <input type="text" id="scanner-ciclico-input" placeholder="O ingresa el codigo manualmente...">
+                    <button onclick="ScannerController.buscarManualCiclico()"><i class="fas fa-search"></i></button>
                 </div>
             </div>
         `;
+        document.body.appendChild(overlay);
 
-        modal.style.cssText = `
-            position: fixed; inset: 0; z-index: 10000;
-            display: flex; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.9);
-        `;
+        this._ciclicoProductos = productos;
+        this._ciclicoOnFound = onFound;
+        this._ciclicoOnNotFound = onNotFound;
 
-        document.body.appendChild(modal);
-
-        // Guardar callback para cuando se escanee
-        this.scanCallback = callback;
-
-        // Intentar abrir cámara
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
-            });
-
-            this.currentStream = stream;
-            const video = document.getElementById('scanner-video');
-            video.srcObject = stream;
-            this.isScanning = true;
-
-            // Aquí iría la lógica de detección de código de barras
-            // Por ahora solo mostramos la cámara
-
-        } catch (err) {
-            console.warn('No se pudo acceder a la cámara:', err);
-            // Mostrar solo input manual
-            const videoContainer = modal.querySelector('.camera-container');
-            if (videoContainer) {
-                videoContainer.innerHTML = `
-                    <div style="padding: 40px; text-align: center; color: rgba(255,255,255,0.5);">
-                        <i class="fas fa-camera-slash" style="font-size: 48px; margin-bottom: 15px;"></i>
-                        <p>Cámara no disponible</p>
-                        <small>Usa el campo de texto para ingresar el código</small>
-                    </div>
-                `;
-            }
-        }
-
-        // Enter en input manual
-        document.getElementById('manual-code-input')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.submitManualCode();
-            }
+        document.getElementById('scanner-ciclico-input')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.buscarManualCiclico();
         });
+
+        const started = this.startQuagga('scanner-ciclico-video', (code) => {
+            this._procesarCodigoCiclico(code);
+        });
+
+        if (!started) {
+            document.getElementById('scanner-ciclico-video').innerHTML =
+                '<div class="scanner-no-camera"><i class="fas fa-camera-slash"></i><p>Camara no disponible</p></div>';
+        }
     },
 
-    // ═══════════════════════════════════════════════════════════
-    // ENVIAR CÓDIGO MANUAL
-    // ═══════════════════════════════════════════════════════════
-    submitManualCode() {
-        const input = document.getElementById('manual-code-input');
-        const code = input?.value?.trim();
-        
-        if (code) {
-            this.closeScanner();
-            if (this.scanCallback) {
-                this.scanCallback(code);
+    buscarManualCiclico() {
+        const code = document.getElementById('scanner-ciclico-input')?.value.trim();
+        if (code) this._procesarCodigoCiclico(code);
+    },
+
+    _procesarCodigoCiclico(code) {
+        const prods = this._ciclicoProductos || [];
+        const idx = prods.findIndex(p => p.upc === code);
+
+        if (idx !== -1) {
+            // Capturar referencia ANTES de cerrar (cerrarScannerCiclico la anula)
+            const onFound = this._ciclicoOnFound;
+            this._mostrarCapturaExito(code, () => {
+                this.cerrarScannerCiclico();
+                if (onFound) onFound(idx, code);
+            });
+        } else {
+            const statusEl = document.getElementById('scanner-ciclico-status');
+            if (statusEl) {
+                statusEl.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> UPC <code>${code}</code> no pertenece a este ciclico`;
+                statusEl.className = 'scanner-ciclico-status not-found';
             }
+            if (this._ciclicoOnNotFound) this._ciclicoOnNotFound(code);
         }
     },
 
-    // ═══════════════════════════════════════════════════════════
-    // CERRAR SCANNER
-    // ═══════════════════════════════════════════════════════════
-    closeScanner() {
-        // Detener stream de cámara
-        if (this.currentStream) {
-            this.currentStream.getTracks().forEach(track => track.stop());
-            this.currentStream = null;
+    _mostrarCapturaExito(code, callback) {
+        // Flash verde en el contenedor de video
+        const videoEl = document.getElementById('scanner-ciclico-video');
+        if (videoEl) {
+            videoEl.classList.add('capture-flash');
+
+            // Badge de confirmación en el centro del video
+            const badge = document.createElement('div');
+            badge.className = 'scanner-capture-badge';
+            badge.innerHTML = `<i class="fas fa-check-circle"></i> ${code}`;
+            videoEl.appendChild(badge);
+
+            // Limpiar flash tras animación
+            setTimeout(() => videoEl.classList.remove('capture-flash'), 560);
         }
 
-        // Remover modal
-        const modal = document.getElementById('camera-modal');
-        if (modal) modal.remove();
+        // Actualizar texto de estado
+        const statusEl = document.getElementById('scanner-ciclico-status');
+        if (statusEl) {
+            statusEl.innerHTML = `<i class="fas fa-check-circle" style="color:var(--success);"></i> Capturado: <code>${code}</code>`;
+        }
 
-        this.isScanning = false;
-        this.scanCallback = null;
+        // Ejecutar callback tras la duración de la animación
+        setTimeout(() => { if (callback) callback(); }, 650);
     },
 
-    // ═══════════════════════════════════════════════════════════
-    // PROCESAR CÓDIGO ESCANEADO
-    // ═══════════════════════════════════════════════════════════
-    async processScannedCode(code) {
-        const result = await this.consultarProducto(code);
-        return result;
+    cerrarScannerCiclico() {
+        this.stopQuagga();
+        const overlay = document.getElementById('scanner-ciclico-overlay');
+        if (overlay) overlay.remove();
+        this._ciclicoProductos = null;
+        this._ciclicoOnFound = null;
+        this._ciclicoOnNotFound = null;
+    },
+
+    // ═══ ESCANEO PARA MODO CONSULTA ═══
+    iniciarScannerConsulta(containerId, onDetected) {
+        const started = this.startQuagga(containerId, onDetected, true);
+        if (!started) {
+            const el = document.getElementById(containerId);
+            if (el) el.innerHTML = '<div class="scanner-no-camera"><i class="fas fa-camera-slash"></i><p>Camara no disponible</p></div>';
+        }
+        return started;
+    },
+
+    detenerScannerConsulta() {
+        this.stopQuagga();
+    },
+
+    // ═══ RENDER DETALLE DE PRODUCTO (compartido por las 3 vistas) ═══
+    renderConsultaDetalle(p, ubicaciones = []) {
+        return `
+        <div class="consulta-detalle-v2">
+            <div class="consulta-detalle-titulo">Resultado de consulta</div>
+            <div class="consulta-detalle-grid">
+                <div class="consulta-field">
+                    <span class="consulta-field-label">UPC</span>
+                    <span class="consulta-field-value mono">${p.upc || '—'}</span>
+                </div>
+                <div class="consulta-field">
+                    <span class="consulta-field-label">SKU / NetSuite</span>
+                    <span class="consulta-field-value">${p.sku || '—'}</span>
+                </div>
+                <div class="consulta-field">
+                    <span class="consulta-field-label">Precio</span>
+                    <span class="consulta-field-value consulta-precio">₡${(p.precio || 0).toLocaleString()}</span>
+                </div>
+                <div class="consulta-field">
+                    <span class="consulta-field-label">Cantidad en sistema</span>
+                    <span class="consulta-field-value">${p.existencia || 0} <small>uds</small></span>
+                </div>
+                <div class="consulta-field wide">
+                    <span class="consulta-field-label">Descripción</span>
+                    <span class="consulta-field-value">${p.descripcion || '—'}</span>
+                </div>
+                <div class="consulta-field">
+                    <span class="consulta-field-label">Estatus</span>
+                    <span class="consulta-field-value">${p.estatus || '—'}</span>
+                </div>
+                <div class="consulta-field">
+                    <span class="consulta-field-label">Tipo</span>
+                    <span class="consulta-field-value">${p.tipo || '—'}</span>
+                </div>
+            </div>
+            ${ubicaciones.length ? `
+            <div class="consulta-ubicaciones">
+                <span class="consulta-field-label">Ubicaciones registradas</span>
+                <div class="consulta-ubic-tags">
+                    ${ubicaciones.map(u => `<span class="consulta-ubic-tag">${u}</span>`).join('')}
+                </div>
+            </div>` : ''}
+        </div>`;
     }
 };
 
-// Exponer globalmente
 window.ScannerController = ScannerController;
+console.log('✓ ScannerController v2.0 cargado');

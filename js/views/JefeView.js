@@ -29,7 +29,7 @@ const JefeView = {
                     <a href="#" class="nav-item" data-section="asignar" onclick="JefeView.showSection('asignar')"><i class="fas fa-tasks"></i><span>Asignar Tareas</span></a>
                     <a href="#" class="nav-item" data-section="hallazgos" onclick="JefeView.showSection('hallazgos')"><i class="fas fa-exclamation-triangle"></i><span>Hallazgos</span><span class="badge-alert" id="hallazgos-count">0</span></a>
                     <a href="#" class="nav-item" data-section="revisar" onclick="JefeView.showSection('revisar')"><i class="fas fa-clipboard-check"></i><span>Revisar Ciclicos</span></a>
-                    <a href="#" class="nav-item" onclick="JefeView.showConsultaModal()"><i class="fas fa-search"></i><span>Modo Consulta</span></a>
+                    <a href="#" class="nav-item" data-section="consulta" onclick="JefeView.showSection('consulta')"><i class="fas fa-search"></i><span>Modo Consulta</span></a>
                     <div class="nav-spacer"></div>
                     <a href="#" class="nav-item theme-toggle" onclick="JefeView.toggleTheme()"><i class="fas fa-moon"></i><span>Modo Oscuro</span></a>
                     <a href="#" class="nav-item logout" onclick="AuthController.logout()"><i class="fas fa-power-off"></i><span>Cerrar Turno</span></a>
@@ -79,6 +79,9 @@ const JefeView = {
                         <div class="section-header"><h2><i class="fas fa-clipboard-check"></i> <span id="revision-titulo">Revision</span></h2><button class="btn-secondary" onclick="JefeView.cerrarRevision()"><i class="fas fa-arrow-left"></i> Volver</button></div>
                         <div class="revision-actions-top"><button class="btn-hallazgo-jefe" onclick="JefeView.agregarHallazgoJefe()"><i class="fas fa-plus"></i> Agregar Hallazgo</button></div>
                     </section>
+                    <section class="search-section glass">
+                        <div class="search-bar"><input type="text" id="revision-buscar" placeholder="Buscar por UPC, SKU o descripcion..." onkeyup="JefeView.filtrarProductosRevision(this.value)"><button class="btn-scan" onclick="JefeView.abrirScannerRevision()"><i class="fas fa-camera"></i></button></div>
+                    </section>
                     <section class="tabla-section glass"><div class="tabla-scroll"><table class="tabla-ciclico"><thead><tr>
                         <th class="col-num">#</th><th class="col-upc">UPC</th><th class="col-sku">SKU</th>
                         <th class="col-desc">DESCRIPCION</th><th class="col-precio">PRECIO</th>
@@ -88,6 +91,35 @@ const JefeView = {
                     </tr></thead><tbody id="revision-tbody"></tbody></table></div></section>
                     <div class="revision-footer"><button class="btn-entregar" onclick="JefeView.entregarAAdmin()"><i class="fas fa-paper-plane"></i> Entregar a Administracion</button></div>
                 </div>
+
+                <!-- MODO CONSULTA -->
+                <div id="section-consulta" class="section-content" style="display:none;">
+                    <section class="consulta-v2-wrap">
+                        <div class="consulta-v2-searchbar glass">
+                            <input type="text" id="jefe-consulta-input" placeholder="Buscar por descripcion, UPC o SKU..." onkeyup="if(event.key==='Enter')JefeView.ejecutarConsulta()">
+                            <button class="btn-consultar" style="background:var(--purple)" onclick="JefeView.ejecutarConsulta()">Consultar</button>
+                        </div>
+                        <div class="consulta-v2-body">
+                            <div class="consulta-v2-camera glass">
+                                <div class="consulta-v2-cam-header">
+                                    <span><i class="fas fa-camera"></i> Escaner</span>
+                                    <span class="consulta-activo-badge">Activo</span>
+                                </div>
+                                <div class="consulta-v2-video-wrap">
+                                    <div id="jefe-consulta-video"></div>
+                                    <div class="consulta-scan-line"></div>
+                                </div>
+                                <div class="consulta-v2-status" id="jefe-consulta-status">
+                                    <i class="fas fa-barcode"></i> Apunta al codigo de barras
+                                </div>
+                            </div>
+                            <div class="consulta-v2-resultado glass" id="jefe-consulta-resultado">
+                                <div class="empty-state"><i class="fas fa-search"></i><p>Busca un producto por descripcion, UPC o SKU</p></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
             </main>
         </div>
         ${this.renderModals()}`;
@@ -367,12 +399,24 @@ async loadAuxiliares() {
         this.renderRevision();
     },
 
-    renderRevision() {
+    renderRevision(filtro = '') {
         if (!this.revisionActual) return;
         const tbody = document.getElementById('revision-tbody');
-        const prods = this.revisionActual.productos || [];
+        const allProds = this.revisionActual.productos || [];
 
-        tbody.innerHTML = prods.map((p, i) => {
+        // Construir lista con índice real para que los botones siempre apunten al array original
+        let items = allProds.map((p, i) => ({ p, realIdx: i }));
+        if (filtro) {
+            const f = filtro.toUpperCase();
+            items = items.filter(({ p }) =>
+                (p.upc || '').includes(f) || (p.sku || '').toUpperCase().includes(f) ||
+                (p.descripcion || '').toUpperCase().includes(f)
+            );
+        }
+
+        if (!items.length) { tbody.innerHTML = '<tr><td colspan="11" class="empty-cell">No hay productos</td></tr>'; return; }
+
+        tbody.innerHTML = items.map(({ p, realIdx }, displayIdx) => {
             const esH = p.es_hallazgo || false;
             const comp = p.conteos && p.conteos.length > 0;
             const tot = p.total || 0;
@@ -390,7 +434,7 @@ async loadAuxiliares() {
             }
 
             let cantH = '<span class="sin-conteo">—</span>';
-            if (comp) cantH = p.conteos.map((c, ci) => `<div class="conteo-inline"><span class="conteo-cant">${c.cantidad}</span><button class="btn-edit-mini" onclick="JefeView.editarConteoRevision(${i},${ci})"><i class="fas fa-pen"></i></button><button class="btn-del-mini" onclick="JefeView.eliminarConteoRevision(${i},${ci})"><i class="fas fa-times"></i></button></div>`).join('');
+            if (comp) cantH = p.conteos.map((c, ci) => `<div class="conteo-inline"><span class="conteo-cant">${c.cantidad}</span><button class="btn-edit-mini" onclick="JefeView.editarConteoRevision(${realIdx},${ci})"><i class="fas fa-pen"></i></button><button class="btn-del-mini" onclick="JefeView.eliminarConteoRevision(${realIdx},${ci})"><i class="fas fa-times"></i></button></div>`).join('');
 
             let ubicH = '<span class="sin-conteo">—</span>';
             if (comp) ubicH = p.conteos.map(c => `<div class="ubic-inline">${c.ubicacion}</div>`).join('');
@@ -399,8 +443,8 @@ async loadAuxiliares() {
             if (comp) { if (dif < 0) dc = 'diff-falta'; else if (dif > 0) dc = 'diff-sobra'; else dc = 'diff-cero'; }
             let rc = esH ? 'row-hallazgo-aprobado' : (comp ? 'row-completo' : '');
 
-            return `<tr class="${rc}">
-                <td class="col-num">${i + 1}</td>
+            return `<tr class="${rc}" data-idx="${realIdx}">
+                <td class="col-num">${displayIdx + 1}</td>
                 <td class="col-upc"><code>${p.upc || '—'}</code></td>
                 <td class="col-sku">${p.sku || '—'}</td>
                 <td class="col-desc">${p.descripcion || '—'} ${badges}</td>
@@ -410,7 +454,7 @@ async loadAuxiliares() {
                 <td class="col-ubicacion">${ubicH}</td>
                 <td class="col-total"><strong>${tot}</strong></td>
                 <td class="col-diferencia ${dc}"><strong>${comp ? dif : '—'}</strong></td>
-                <td class="col-acciones"><button class="btn-add-conteo" onclick="JefeView.agregarConteoRevision(${i})"><i class="fas fa-plus"></i></button></td>
+                <td class="col-acciones"><button class="btn-add-conteo" onclick="JefeView.agregarConteoRevision(${realIdx})"><i class="fas fa-plus"></i></button></td>
             </tr>`;
         }).join('');
     },
@@ -491,6 +535,8 @@ async loadAuxiliares() {
         this.revisionActual.estado = 'aprobado_jefe';
         this.revisionActual.aprobado_por = s.name;
         this.revisionActual.fecha_aprobacion = new Date().toISOString();
+        // Guardar ubicaciones canónicas (upsert por UPC) antes de cerrar
+        await window.LocationModel.guardarUbicacionesTarea(this.revisionActual);
         await window.db.tareas.put(this.revisionActual);
         await this.syncTareaToSupabase(this.revisionActual);
         window.ZENGO?.toast('Entregado a Administracion ✓', 'success');
@@ -501,37 +547,96 @@ async loadAuxiliares() {
 
     cerrarRevision() { this.revisionActual = null; this.showSection('revisar'); },
 
+    filtrarProductosRevision(v) { this.renderRevision(v); },
+
+    abrirScannerRevision() {
+        if (!this.revisionActual || !this.revisionActual.productos) {
+            window.ZENGO?.toast('No hay revision activa', 'error');
+            return;
+        }
+        ScannerController.abrirScannerCiclico(
+            this.revisionActual.productos,
+            (idx) => {
+                // Encontrado: limpiar búsqueda, mostrar tabla completa y resaltar fila
+                const input = document.getElementById('revision-buscar');
+                if (input) input.value = '';
+                this.renderRevision('');
+
+                const isLight = document.body.classList.contains('light-mode');
+                const bgColor = isLight ? '#93c5fd' : 'rgba(37,99,235,0.55)';
+                const textColor = isLight ? '#1e3a8a' : '';
+
+                const row = document.querySelector(`#revision-tbody tr[data-idx="${idx}"]`);
+                if (row) {
+                    row.style.boxShadow = 'inset 4px 0 0 #2563EB';
+                    row.querySelectorAll('td').forEach(td => {
+                        td.style.background = bgColor;
+                        if (textColor) td.style.color = textColor;
+                    });
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            },
+            (code) => {
+                window.ZENGO?.toast(`UPC ${code} no pertenece a este ciclico`, 'warning');
+            }
+        );
+    },
+
     // ═══ UI ═══
     toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); },
     toggleTheme() { document.body.classList.toggle('light-mode'); },
 
     showSection(id) {
+        ScannerController.detenerScannerConsulta();
         document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
         document.getElementById(`section-${id}`).style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.querySelector(`[data-section="${id}"]`)?.classList.add('active');
+        if (id === 'consulta') this._iniciarScannerConsulta();
         if (id === 'hallazgos') this.loadHallazgos();
         if (id === 'revisar') this.loadCiclicosParaRevisar();
     },
 
-    showConsultaModal() { document.getElementById('consulta-modal').style.display = 'flex'; },
     closeModal() { document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none'); },
 
-    async buscarProducto() {
-        const t = document.getElementById('consulta-input').value.trim();
-        if (!t) return;
-        const r = await window.InventoryModel.buscarProducto(t);
-        document.getElementById('consulta-resultado').innerHTML = r.length
-            ? `<div class="consulta-card"><h4>${r[0].descripcion}</h4><div class="consulta-grid"><div><small>UPC</small><code>${r[0].upc}</code></div><div><small>SKU</small><strong>${r[0].sku}</strong></div><div><small>Existencia</small><strong>${r[0].existencia}</strong></div><div><small>Categoria</small><strong>${r[0].categoria}</strong></div></div></div>`
-            : '<div class="empty-state"><p>No encontrado</p></div>';
+    // ═══ MODO CONSULTA ═══
+    async ejecutarConsulta() {
+        const term = document.getElementById('jefe-consulta-input')?.value.trim();
+        if (!term) return;
+        const panel = document.getElementById('jefe-consulta-resultado');
+        const resultados = await ScannerController.buscarProductos(term);
+        if (!resultados.length) {
+            panel.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>Sin resultados</p></div>';
+            return;
+        }
+        if (resultados.length === 1) {
+            const r = await ScannerController.consultarProducto(resultados[0].upc);
+            if (r.encontrado) panel.innerHTML = ScannerController.renderConsultaDetalle(r.producto, r.ubicaciones);
+            return;
+        }
+        panel.innerHTML = `<div class="consulta-lista">${resultados.map(p =>
+            `<div class="consulta-lista-item" onclick="JefeView.verDetalleConsulta('${p.upc}')">
+                <span class="consulta-lista-upc">${p.upc || '—'}</span>
+                <span class="consulta-lista-desc">${p.descripcion || '—'}</span>
+                <span class="consulta-lista-meta">₡${(p.precio||0).toLocaleString()} · Existencia: ${p.existencia||0}</span>
+            </div>`).join('')}</div>`;
     },
 
-    renderModals() {
-        return `<div id="consulta-modal" class="modal-overlay" style="display:none;"><div class="modal-content glass">
-            <div class="modal-header"><h2><i class="fas fa-search"></i> Consulta</h2><button class="modal-close" onclick="JefeView.closeModal()"><i class="fas fa-times"></i></button></div>
-            <div class="modal-body"><div class="search-bar"><input type="text" id="consulta-input" placeholder="UPC, SKU o descripcion..."><button class="btn-primary" onclick="JefeView.buscarProducto()"><i class="fas fa-search"></i></button></div><div id="consulta-resultado"></div></div>
-        </div></div>`;
-    }
+    async verDetalleConsulta(upc) {
+        const r = await ScannerController.consultarProducto(upc);
+        const panel = document.getElementById('jefe-consulta-resultado');
+        if (r.encontrado) panel.innerHTML = ScannerController.renderConsultaDetalle(r.producto, r.ubicaciones);
+    },
+
+    _iniciarScannerConsulta() {
+        ScannerController.iniciarScannerConsulta('jefe-consulta-video', (code) => {
+            document.getElementById('jefe-consulta-status').innerHTML =
+                `<i class="fas fa-check-circle" style="color:var(--success)"></i> Detectado: <code>${code}</code>`;
+            this.verDetalleConsulta(code);
+        });
+    },
+
+    renderModals() { return ''; }
 };
 
 window.JefeView = JefeView;

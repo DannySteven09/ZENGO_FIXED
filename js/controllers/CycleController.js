@@ -22,9 +22,6 @@ const CycleController = {
                 timestamp: timestamp
             });
 
-            // Guardar ubicación
-            await window.LocationModel.saveLocation(upc, ubicacion, auxiliarId);
-
             // Actualizar tarea si existe
             if (tareaId) {
                 await this.actualizarProgresoTarea(tareaId, upc, cantidad);

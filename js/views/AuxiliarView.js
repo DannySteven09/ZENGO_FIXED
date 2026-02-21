@@ -29,7 +29,7 @@ const AuxiliarView = {
                 </div>
                 <nav class="sidebar-nav">
                     <a href="#" class="nav-item active" data-section="ciclico" onclick="AuxiliarView.showSection('ciclico')"><i class="fas fa-clipboard-list"></i><span>Mi Ciclico</span></a>
-                    <a href="#" class="nav-item" onclick="AuxiliarView.showConsultaModal()"><i class="fas fa-search"></i><span>Modo Consulta</span></a>
+                    <a href="#" class="nav-item" data-section="consulta" onclick="AuxiliarView.showSection('consulta')"><i class="fas fa-search"></i><span>Modo Consulta</span></a>
                     <div class="nav-spacer"></div>
                     <a href="#" class="nav-item theme-toggle" onclick="AuxiliarView.toggleTheme()"><i class="fas fa-moon"></i><span>Modo Oscuro</span></a>
                     <a href="#" class="nav-item logout" onclick="AuthController.logout()"><i class="fas fa-power-off"></i><span>Cerrar Sesion</span></a>
@@ -101,6 +101,34 @@ const AuxiliarView = {
                     </div>
                 </div>
 
+                <!-- MODO CONSULTA -->
+                <div id="section-consulta" class="section-content" style="display:none;">
+                    <section class="consulta-v2-wrap">
+                        <div class="consulta-v2-searchbar glass">
+                            <input type="text" id="aux-consulta-input" placeholder="Buscar por descripcion, UPC o SKU..." onkeyup="if(event.key==='Enter')AuxiliarView.ejecutarConsulta()">
+                            <button class="btn-consultar" style="background:var(--blue)" onclick="AuxiliarView.ejecutarConsulta()">Consultar</button>
+                        </div>
+                        <div class="consulta-v2-body">
+                            <div class="consulta-v2-camera glass">
+                                <div class="consulta-v2-cam-header">
+                                    <span><i class="fas fa-camera"></i> Escaner</span>
+                                    <span class="consulta-activo-badge">Activo</span>
+                                </div>
+                                <div class="consulta-v2-video-wrap">
+                                    <div id="aux-consulta-video"></div>
+                                    <div class="consulta-scan-line"></div>
+                                </div>
+                                <div class="consulta-v2-status" id="aux-consulta-status">
+                                    <i class="fas fa-barcode"></i> Apunta al codigo de barras
+                                </div>
+                            </div>
+                            <div class="consulta-v2-resultado glass" id="aux-consulta-resultado">
+                                <div class="empty-state"><i class="fas fa-search"></i><p>Busca un producto por descripcion, UPC o SKU</p></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
             </main>
         </div>
         ${this.renderModals()}`;
@@ -128,8 +156,6 @@ const AuxiliarView = {
 
             const localContados = local.productos_contados || 0;
             const remotaContados = remota.productos_contados || 0;
-            const localHallazgos = (local.productos || []).filter(p => p.es_hallazgo).length;
-            const remotaHallazgos = (remota.productos || []).filter(p => p.es_hallazgo).length;
             const remotaResueltos = (remota.productos || []).filter(p => p.es_hallazgo && p.hallazgo_estado !== 'pendiente').length;
             const localResueltos = (local.productos || []).filter(p => p.es_hallazgo && p.hallazgo_estado !== 'pendiente').length;
 
@@ -266,7 +292,7 @@ const AuxiliarView = {
                     ? '<span class="icon-pending"><i class="fas fa-clock"></i></span>'
                     : '<span class="icon-rejected"><i class="fas fa-ban"></i></span>');
 
-            return `<tr class="${rowClass}">
+            return `<tr class="${rowClass}" data-idx="${realIndex}">
                 <td class="col-num">${i + 1}</td>
                 <td class="col-upc"><code>${p.upc || '—'}</code></td>
                 <td class="col-sku">${p.sku || '—'}</td>
@@ -575,35 +601,88 @@ const AuxiliarView = {
         document.getElementById('finalizar-section').style.display = 'none';
     },
 
-    // ═══ SCANNER ═══
-    abrirScanner() { document.getElementById('scanner-modal').style.display = 'flex'; this.iniciarCamara(); },
-    async iniciarCamara() {
-        try {
-            const v = document.getElementById('scanner-video');
-            const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            v.srcObject = s; this.scannerStream = s;
-        } catch (e) { window.ZENGO?.toast('No se pudo acceder a la cámara', 'error'); }
+    // ═══ SCANNER CÍCLICO ═══
+    abrirScanner() {
+        if (!this.tareaActual || !this.tareaActual.productos) {
+            window.ZENGO?.toast('No hay tarea activa', 'error');
+            return;
+        }
+        ScannerController.abrirScannerCiclico(
+            this.tareaActual.productos,
+            (idx) => {
+                // Limpiar filtro y mostrar tabla completa
+                const input = document.getElementById('buscar-producto');
+                if (input) input.value = '';
+                this.renderProductos('');
+
+                const isLight = document.body.classList.contains('light-mode');
+                const bgColor = isLight ? '#93c5fd' : 'rgba(37,99,235,0.55)';
+                const textColor = isLight ? '#1e3a8a' : '';
+
+                const row = document.querySelector(`#productos-tbody tr[data-idx="${idx}"]`);
+                if (row) {
+                    row.style.boxShadow = 'inset 4px 0 0 #2563EB';
+                    row.querySelectorAll('td').forEach(td => {
+                        td.style.background = bgColor;
+                        if (textColor) td.style.color = textColor;
+                    });
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            },
+            (code) => {
+                // No encontrado → solo aviso, sin crear hallazgo
+                window.ZENGO?.toast(`UPC ${code} no pertenece a este ciclo`, 'warning');
+            }
+        );
     },
-    cerrarScanner() { if (this.scannerStream) this.scannerStream.getTracks().forEach(t => t.stop()); document.getElementById('scanner-modal').style.display = 'none'; },
 
     // ═══ UI ═══
     toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); },
     toggleTheme() { document.body.classList.toggle('light-mode'); },
     showSection(id) {
+        ScannerController.detenerScannerConsulta();
         document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
         document.getElementById(`section-${id}`).style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.querySelector(`[data-section="${id}"]`)?.classList.add('active');
+        if (id === 'consulta') this._iniciarScannerConsulta();
     },
-    showConsultaModal() { document.getElementById('aux-consulta-modal').style.display = 'flex'; },
 
-    async buscarProductoConsulta() {
-        const t = document.getElementById('aux-consulta-input').value.trim();
-        if (!t) return;
-        const r = await window.InventoryModel.buscarProducto(t);
-        document.getElementById('aux-consulta-resultado').innerHTML = r.length
-            ? `<div class="consulta-card"><h4>${r[0].descripcion}</h4><div class="consulta-grid"><div><small>UPC</small><code>${r[0].upc}</code></div><div><small>SKU</small><strong>${r[0].sku}</strong></div><div><small>Existencia</small><strong>${r[0].existencia}</strong></div><div><small>Categoria</small><strong>${r[0].categoria}</strong></div></div></div>`
-            : '<div class="empty-state"><p>No encontrado</p></div>';
+    // ═══ MODO CONSULTA ═══
+    async ejecutarConsulta() {
+        const term = document.getElementById('aux-consulta-input')?.value.trim();
+        if (!term) return;
+        const panel = document.getElementById('aux-consulta-resultado');
+        const resultados = await ScannerController.buscarProductos(term);
+        if (!resultados.length) {
+            panel.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>Sin resultados</p></div>';
+            return;
+        }
+        if (resultados.length === 1) {
+            const r = await ScannerController.consultarProducto(resultados[0].upc);
+            if (r.encontrado) panel.innerHTML = ScannerController.renderConsultaDetalle(r.producto, r.ubicaciones);
+            return;
+        }
+        panel.innerHTML = `<div class="consulta-lista">${resultados.map(p =>
+            `<div class="consulta-lista-item" onclick="AuxiliarView.verDetalleConsulta('${p.upc}')">
+                <span class="consulta-lista-upc">${p.upc || '—'}</span>
+                <span class="consulta-lista-desc">${p.descripcion || '—'}</span>
+                <span class="consulta-lista-meta">₡${(p.precio||0).toLocaleString()} · Existencia: ${p.existencia||0}</span>
+            </div>`).join('')}</div>`;
+    },
+
+    async verDetalleConsulta(upc) {
+        const r = await ScannerController.consultarProducto(upc);
+        const panel = document.getElementById('aux-consulta-resultado');
+        if (r.encontrado) panel.innerHTML = ScannerController.renderConsultaDetalle(r.producto, r.ubicaciones);
+    },
+
+    _iniciarScannerConsulta() {
+        ScannerController.iniciarScannerConsulta('aux-consulta-video', (code) => {
+            document.getElementById('aux-consulta-status').innerHTML =
+                `<i class="fas fa-check-circle" style="color:var(--success)"></i> Detectado: <code>${code}</code>`;
+            this.verDetalleConsulta(code);
+        });
     },
 
     closeModal() {
@@ -632,14 +711,8 @@ const AuxiliarView = {
             </div>
             <div class="modal-footer"><button class="btn-secondary" onclick="AuxiliarView.closeModal()">Cancelar</button><button class="btn-primary" onclick="AuxiliarView.guardarHallazgo()"><i class="fas fa-paper-plane"></i> Reportar</button></div>
         </div></div>
-        <div id="aux-consulta-modal" class="modal-overlay" style="display:none;"><div class="modal-content glass">
-            <div class="modal-header"><h2><i class="fas fa-search"></i> Consulta</h2><button class="modal-close" onclick="AuxiliarView.closeModal()"><i class="fas fa-times"></i></button></div>
-            <div class="modal-body"><div class="search-bar"><input type="text" id="aux-consulta-input" placeholder="UPC, SKU o descripcion..."><button class="btn-primary" onclick="AuxiliarView.buscarProductoConsulta()"><i class="fas fa-search"></i></button></div><div id="aux-consulta-resultado"></div></div>
-        </div></div>
-        <div id="scanner-modal" class="modal-overlay" style="display:none;"><div class="modal-content glass">
-            <div class="modal-header"><h2><i class="fas fa-barcode"></i> Escanear</h2><button class="modal-close" onclick="AuxiliarView.cerrarScanner()"><i class="fas fa-times"></i></button></div>
-            <div class="modal-body"><div class="scanner-container"><video id="scanner-video" autoplay playsinline></video></div><p class="text-dim text-center">Apunta al código de barras</p></div>
-        </div></div>`;
+`;
+
     }
 };
 
